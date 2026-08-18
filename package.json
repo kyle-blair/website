@@ -10,6 +10,8 @@
 		"build": "next build",
 		"start": "next start",
 		"lint": "eslint .",
+		"format": "prettier --write .",
+		"format:verify": "prettier --check .",
 		"test": "node --test tests/*Test.ts"
 	},
 	"dependencies": {
