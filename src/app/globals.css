@@ -483,6 +483,11 @@ textarea {
 		radial-gradient(
 			circle at 85% 8%,
 			rgba(157, 124, 255, 0.16),
+			transparent 34%
+		),
+		radial-gradient(
+			circle at 12% 92%,
+			rgba(157, 124, 255, 0.08),
 			transparent 30%
 		),
 		linear-gradient(155deg, #0e0a15, var(--background) 68%);
@@ -497,9 +502,7 @@ textarea {
 		linear-gradient(rgba(157, 124, 255, 0.07) 1px, transparent 1px),
 		linear-gradient(90deg, rgba(157, 124, 255, 0.07) 1px, transparent 1px);
 	background-size: 4.5rem 4.5rem;
-	opacity: 0.45;
-	-webkit-mask-image: radial-gradient(circle at 85% 8%, black, transparent 58%);
-	mask-image: radial-gradient(circle at 85% 8%, black, transparent 58%);
+	opacity: 0.22;
 }
 .blog-article__header {
 	margin-block: 2.5rem 2rem;
