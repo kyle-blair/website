@@ -621,7 +621,8 @@ textarea {
 	font-size: 0.875rem;
 }
 
-.site-footer nav a:hover {
+.site-footer nav a:hover,
+.site-footer nav a.active {
 	color: var(--foreground);
 }
 
