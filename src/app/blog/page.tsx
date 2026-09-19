@@ -5,7 +5,7 @@ import { formatPostDate, getPosts } from "./posts";
 
 export const metadata: Metadata = {
 	title: "blog",
-	description: "Going down rabbit holes.",
+	description: "See how deep the rabbit hole goes.",
 };
 
 export default async function BlogPage() {
@@ -15,7 +15,7 @@ export default async function BlogPage() {
 			<div className="blog-index container">
 				<header className="blog-intro">
 					<p className="eyebrow">blog</p>
-					<h1>Going down rabbit holes.</h1>
+					<h1>See how deep the rabbit hole goes.</h1>
 				</header>
 				{posts.length ? (
 					<ul className="blog-posts">
