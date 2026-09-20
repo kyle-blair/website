@@ -38,7 +38,7 @@ Simple, right?
 But `1.1 * 1.1 = 1.21`.
 Then, `1.21 * 1.1 = 1.331`.
 When multiplying decimal values together, the precision increases.
-BigDecimal's arbitrary precision, coupled with my naievity, led to unconstrained growth
+BigDecimal's arbitrary precision, coupled with my naivety, led to unconstrained growth
 in the number of decimal places.
 At first, things went smooth, but eventually even a powerful cpu struggled to calculate
 who-knows-how-many decimal places.
