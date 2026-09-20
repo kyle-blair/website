@@ -28,28 +28,53 @@ export function SignalField() {
 		let animationFrame = 0;
 		let width = 0;
 		let height = 0;
+		let pixelRatio = 0;
+		let animationTime = 0;
+		let previousFrameTime: number | undefined;
 		let traces: Trace[] = [];
 		let backgroundColor = "#070609";
 
 		function resize() {
-			const pixelRatio = Math.min(window.devicePixelRatio, 2);
-			width = target.clientWidth;
-			height = target.clientHeight;
+			const nextPixelRatio = Math.min(window.devicePixelRatio, 2);
+			const nextWidth = target.clientWidth;
+			const nextHeight = target.clientHeight;
+			if (
+				nextWidth === width &&
+				nextHeight === height &&
+				nextPixelRatio === pixelRatio
+			) {
+				return;
+			}
+
+			pixelRatio = nextPixelRatio;
+			width = nextWidth;
+			height = nextHeight;
 			backgroundColor = window.getComputedStyle(target).backgroundColor;
 			target.width = width * pixelRatio;
 			target.height = height * pixelRatio;
 			drawingContext.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
 
 			const columnCount = Math.ceil(width / 30);
-			traces = Array.from({ length: columnCount }, (_, column) => ({
-				column,
-				offset: Math.random() * height,
-				speed: 0.35 + Math.random() * 0.8,
-				length: 3 + Math.floor(Math.random() * 9),
-			}));
+			traces = Array.from(
+				{ length: columnCount },
+				(_, column) =>
+					traces[column] ?? {
+						column,
+						offset: Math.random() * height,
+						speed: 0.35 + Math.random() * 0.8,
+						length: 3 + Math.floor(Math.random() * 9),
+					},
+			);
 		}
 
-		function draw(time = 0) {
+		function draw(frameTime?: number) {
+			if (frameTime !== undefined) {
+				if (previousFrameTime !== undefined) {
+					// Resume gently if scrolling or a background tab paused drawing.
+					animationTime += Math.min(frameTime - previousFrameTime, 50);
+				}
+				previousFrameTime = frameTime;
+			}
 			drawingContext.fillStyle = backgroundColor;
 			drawingContext.fillRect(0, 0, width, height);
 			drawingContext.font = '12px "SFMono-Regular", Consolas, monospace';
@@ -62,7 +87,7 @@ export function SignalField() {
 				const x = trace.column * columnWidth + columnWidth / 2;
 				const fieldWeight = 0.78;
 				const head =
-					(trace.offset + time * trace.speed * 0.035) % (height + 240);
+					(trace.offset + animationTime * trace.speed * 0.035) % (height + 240);
 
 				for (let index = 0; index < trace.length; index += 1) {
 					const y = head - index * rowHeight;
@@ -77,7 +102,8 @@ export function SignalField() {
 						? `rgba(100, 255, 152, ${Math.min(alpha + 0.25, 0.8)})`
 						: `rgba(157, 124, 255, ${alpha})`;
 					const characterIndex = Math.floor(
-						(trace.column * 7 + index * 3 + time * 0.002) % characters.length,
+						(trace.column * 7 + index * 3 + animationTime * 0.002) %
+							characters.length,
 					);
 					drawingContext.fillText(characters[characterIndex], x, y);
 				}
