@@ -251,7 +251,6 @@ textarea {
 }
 
 .home-page__background {
-	opacity: 0.35;
 	position: absolute;
 	z-index: -1;
 	inset: 0;
