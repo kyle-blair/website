@@ -45,10 +45,10 @@ export default function Home() {
 						<div className="home-chapter__copy">
 							<h2 id="background-heading">Put it into practice.</h2>
 							<p>
-								I combine that approach with a computer engineering degree and
-								a decade of software engineering experience, applying it all 
-								to professional projects, everyday problems, and a
-								homelab that always needs a new feature.
+								I combine that approach with a computer engineering degree and a
+								decade of software engineering experience, applying it all to
+								professional projects, everyday problems, and a homelab that
+								always needs a new feature.
 							</p>
 						</div>
 					</div>
