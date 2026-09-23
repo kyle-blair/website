@@ -1,23 +1,18 @@
 "use client";
 
 import { Menu, X } from "lucide-react";
-import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
 import { BrandMark } from "./brand-mark";
-
-const links = [
-	{ href: "/blog", label: "blog" },
-	{ href: "/contact", label: "contact" },
-];
+import { SiteNavigationLinks } from "./site-navigation-links";
 
 export function SiteHeader() {
 	const pathname = usePathname();
 
-	return <SiteHeaderContent key={pathname} pathname={pathname} />;
+	return <SiteHeaderContent key={pathname} />;
 }
 
-function SiteHeaderContent({ pathname }: { pathname: string }) {
+function SiteHeaderContent() {
 	const [isOpen, setIsOpen] = useState(false);
 
 	return (
@@ -25,15 +20,7 @@ function SiteHeaderContent({ pathname }: { pathname: string }) {
 			<div className="site-header__inner">
 				<BrandMark />
 				<nav className="desktop-nav" aria-label="Primary navigation">
-					{links.map((link) => (
-						<Link
-							className={pathname.startsWith(link.href) ? "active" : undefined}
-							href={link.href}
-							key={link.href}
-						>
-							{link.label}
-						</Link>
-					))}
+					<SiteNavigationLinks />
 				</nav>
 				<button
 					className="icon-button mobile-menu-button"
@@ -47,15 +34,7 @@ function SiteHeaderContent({ pathname }: { pathname: string }) {
 			</div>
 			{isOpen && (
 				<nav className="mobile-nav" aria-label="Mobile navigation">
-					{links.map((link) => (
-						<Link
-							href={link.href}
-							key={link.href}
-							onClick={() => setIsOpen(false)}
-						>
-							{link.label}
-						</Link>
-					))}
+					<SiteNavigationLinks onNavigate={() => setIsOpen(false)} />
 				</nav>
 			)}
 		</header>
