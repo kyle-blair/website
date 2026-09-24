@@ -1,26 +1,10 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
 import { suite, test, type TestContext } from "node:test";
-import { runInNewContext } from "node:vm";
-import ts from "typescript";
-
-const component = ts.transpileModule(
-	readFileSync(
-		new URL("../src/components/signal-field.tsx", import.meta.url),
-		"utf8",
-	),
-	{
-		compilerOptions: {
-			module: ts.ModuleKind.CommonJS,
-			jsx: ts.JsxEmit.ReactJSX,
-		},
-	},
-).outputText;
+import { startSignalField } from "../src/components/signal-field-animation.ts";
 
 type Glyph = { character: string; x: number; y: number };
 
-// Run the real component's effect with a controlled canvas and browser clock.
-// Each test gets isolated hooks, randomness, listeners, and animation frames.
+// Run the animation with a controlled canvas, clock, and randomness.
 function mountSignalField(context: TestContext, reducedMotion = false) {
 	let glyphs: Glyph[] = [];
 	let canvasResets = 0;
@@ -79,30 +63,15 @@ function mountSignalField(context: TestContext, reducedMotion = false) {
 		},
 	};
 	let randomValue = 0.2;
-	const math = Object.create(Math) as Math;
-	math.random = () => {
+	const random = () => {
 		randomValue = (randomValue + 0.137) % 1;
 		return randomValue;
 	};
-	const exports = {} as { SignalField: () => unknown };
-	runInNewContext(component, {
-		exports,
-		window: browser,
-		Math: math,
-		require(name: string) {
-			if (name === "react") {
-				return {
-					useRef: () => ({ current: canvas }),
-					useEffect(effect: () => () => void) {
-						cleanup = effect();
-					},
-				};
-			}
-			if (name === "react/jsx-runtime") return { jsx() {} };
-			throw new Error(`Unexpected component import: ${name}`);
-		},
-	});
-	exports.SignalField();
+	cleanup = startSignalField(
+		canvas as unknown as HTMLCanvasElement,
+		browser as unknown as Window,
+		random,
+	);
 	context.after(() => cleanup?.());
 
 	return {
@@ -141,6 +110,10 @@ function mountSignalField(context: TestContext, reducedMotion = false) {
 }
 
 suite("Signal field", () => {
+	test("a canvas without a two-dimensional context leaves the animation inactive", () => {
+		const canvas = { getContext: () => null } as unknown as HTMLCanvasElement;
+		assert.equal(startSignalField(canvas, {} as Window), undefined);
+	});
 	test("scroll-related window resizes leave an unchanged canvas and its characters intact", (context) => {
 		const animation = mountSignalField(context);
 		const before = animation.frame(100);

@@ -13,7 +13,7 @@
 		"lint": "eslint .",
 		"format": "prettier --write .",
 		"format:verify": "prettier --check .",
-		"test": "node --test"
+		"test": "node --test --experimental-test-coverage --test-coverage-include=\"src/**\" --test-coverage-lines=100 --test-coverage-branches=100 --test-coverage-functions=100"
 	},
 	"dependencies": {
 		"lucide-react": "^1.46.0",

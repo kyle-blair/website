@@ -3,7 +3,7 @@ import { mkdtemp, mkdir, writeFile, rm, copyFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { suite, test, type TestContext } from "node:test";
-import { getPosts } from "../src/app/blog/posts.ts";
+import { formatPostDate, getPost, getPosts } from "../src/app/blog/posts.ts";
 
 async function temporaryPosts(context: TestContext) {
 	const directory = await mkdtemp(path.join(tmpdir(), "website-blog-"));
@@ -85,4 +85,54 @@ suite("Blog posts", () => {
 		assert.match(post.body, /&lt;script&gt;/);
 		assert.doesNotMatch(post.body, /<script>|href="javascript:/);
 	});
+	test("posts sort by date, then title, with undated posts last", async (context) => {
+		const directory = await temporaryPosts(context);
+		await Promise.all([
+			writeFile(path.join(directory, "beta.md"), "# Beta\n\nDate: 2026-05-03\n\nBeta body."),
+			writeFile(path.join(directory, "alpha.md"), "# Alpha\n\nDate: 2026-05-03\n\nAlpha body."),
+			writeFile(path.join(directory, "earlier.md"), "# Earlier\n\nDate: 2025-12-31\n\nEarlier body."),
+			writeFile(path.join(directory, "undated.md"), "# Undated\n\nUndated body."),
+		]);
+		const posts = await getPosts(directory);
+		assert.deepEqual(
+			posts.map(({ title, date }) => ({ title, date })),
+			[
+				{ title: "Alpha", date: "2026-05-03" },
+				{ title: "Beta", date: "2026-05-03" },
+				{ title: "Earlier", date: "2025-12-31" },
+				{ title: "Undated", date: undefined },
+			],
+		);
+		assert.match(posts[0].body, /<p>Alpha body\.<\/p>/);
+		assert.doesNotMatch(posts[0].body, /Date:|<h1>/);
+		assert.equal(formatPostDate(posts[0].date!), "2026-05-03");
+	});
+
+	test("invalid calendar dates and malformed date lines are rejected", async (context) => {
+		const directory = await temporaryPosts(context);
+		const file = path.join(directory, "dated.md");
+		for (const date of ["yesterday", "2026-02-30", "2026-13-01", "2026-05-03 extra"]) {
+			await writeFile(file, `# Dated\n\nDate: ${date}\n\nBody.`);
+			await assert.rejects(getPosts(directory), /valid calendar date/);
+		}
+	});
+
+	test("post lookup returns the matching published post and reports a missing address", async () => {
+		const [post] = await getPosts();
+		assert.ok(post);
+		assert.deepEqual(await getPost(post.slug), post);
+		assert.equal(await getPost("no-such-post"), undefined);
+	});
+
+	test("image alternative text contributes to a post title and address", async (context) => {
+		const directory = await temporaryPosts(context);
+		await writeFile(
+			path.join(directory, "image-heading.md"),
+			"# Meet ![zero four two](logo.png)\n\nBody.",
+		);
+		const [post] = await getPosts(directory);
+		assert.equal(post.title, "Meet zero four two");
+		assert.equal(post.slug, "meet-zero-four-two");
+	});
+
 });

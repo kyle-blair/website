@@ -9,8 +9,6 @@ function plainText(tokens: ReturnType<typeof markdown.parse>): string {
 	return tokens
 		.map((token) => {
 			if (token.children) return plainText(token.children);
-			if (token.type === "softbreak" || token.type === "hardbreak")
-				return " ";
 			return token.nesting === 0 ? token.content : "";
 		})
 		.join("");
@@ -40,7 +38,7 @@ export async function getPosts(directory = postsDirectory) {
 						`${file.name}: start the post with one primary heading (# Title). Use ## for sections.`,
 					);
 				}
-				const title = plainText(tokens[1].children ?? []).trim();
+				const title = plainText(tokens[1].children!).trim();
 				const slug = title
 					.normalize("NFKD")
 					.replace(/\p{M}/gu, "")
