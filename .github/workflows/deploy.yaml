@@ -1,12 +1,14 @@
 on:
-    push:
-        branches: [main]
+    workflow_call:
+        secrets:
+            DEPLOY_HOOK_URL:
+                required: true
 
 jobs:
     deploy:
-        runs-on: ubuntu-latest
+        runs-on: ${{ vars.runner || 'ubuntu-24.04' }}
         steps:
             - name: deploy
               env:
-                  deploy_url: ${{ secrets.RENDER_DEPLOY_HOOK_URL }}
+                  deploy_url: ${{ secrets.DEPLOY_HOOK_URL }}
               run: curl "$deploy_url"
