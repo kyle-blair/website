@@ -24,7 +24,9 @@ export function SignalField() {
 		const target: HTMLCanvasElement = canvas;
 		const drawingContext: CanvasRenderingContext2D = context;
 
-		const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
+		const reducedMotion = window.matchMedia(
+			"(prefers-reduced-motion: reduce)",
+		);
 		let animationFrame = 0;
 		let width = 0;
 		let height = 0;
@@ -71,7 +73,10 @@ export function SignalField() {
 			if (frameTime !== undefined) {
 				if (previousFrameTime !== undefined) {
 					// Resume gently if scrolling or a background tab paused drawing.
-					animationTime += Math.min(frameTime - previousFrameTime, 50);
+					animationTime += Math.min(
+						frameTime - previousFrameTime,
+						50,
+					);
 				}
 				previousFrameTime = frameTime;
 			}
@@ -87,7 +92,8 @@ export function SignalField() {
 				const x = trace.column * columnWidth + columnWidth / 2;
 				const fieldWeight = 0.78;
 				const head =
-					(trace.offset + animationTime * trace.speed * 0.035) % (height + 240);
+					(trace.offset + animationTime * trace.speed * 0.035) %
+					(height + 240);
 
 				for (let index = 0; index < trace.length; index += 1) {
 					const y = head - index * rowHeight;
@@ -124,5 +130,7 @@ export function SignalField() {
 		};
 	}, []);
 
-	return <canvas className="signal-field" ref={canvasRef} aria-hidden="true" />;
+	return (
+		<canvas className="signal-field" ref={canvasRef} aria-hidden="true" />
+	);
 }

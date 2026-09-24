@@ -19,7 +19,8 @@ export const metadata: Metadata = {
 	description: "Kyle Blair's site about design, engineering, and technology.",
 	openGraph: {
 		title: "zero four two",
-		description: "Kyle Blair's site about design, engineering, and technology.",
+		description:
+			"Kyle Blair's site about design, engineering, and technology.",
 		url: "https://zerofourtwo.com",
 		siteName: "zero four two",
 		type: "website",

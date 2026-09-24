@@ -14,12 +14,16 @@ export default function ContactPage() {
 					<p className="eyebrow">contact</p>
 					<h1>Say hello.</h1>
 					<p>
-						Want to share an idea, ask a question, or collaborate on something?
-						Send me an email. Keys for OpenPGP / RFC 9580 encryption will be
-						added soon.
+						Want to share an idea, ask a question, or collaborate on
+						something? Send me an email. Keys for OpenPGP / RFC 9580
+						encryption will be added soon.
 					</p>
-					<a className="plain-email" href="mailto:hello@zerofourtwo.com">
-						hello@zerofourtwo.com <ArrowRight size={17} aria-hidden="true" />
+					<a
+						className="plain-email"
+						href="mailto:hello@zerofourtwo.com"
+					>
+						hello@zerofourtwo.com{" "}
+						<ArrowRight size={17} aria-hidden="true" />
 					</a>
 				</div>
 			</section>

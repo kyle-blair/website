@@ -19,7 +19,9 @@ export function SiteNavigationLinks({
 		<>
 			{links.map((link) => (
 				<Link
-					className={pathname.startsWith(link.href) ? "active" : undefined}
+					className={
+						pathname.startsWith(link.href) ? "active" : undefined
+					}
 					href={link.href}
 					key={link.href}
 					onClick={onNavigate}

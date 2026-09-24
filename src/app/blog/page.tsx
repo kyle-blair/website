@@ -27,11 +27,17 @@ export default async function BlogPage() {
 								>
 									<h2>{post.title}</h2>
 									{post.date && (
-										<time className="blog-post-date" dateTime={post.date}>
+										<time
+											className="blog-post-date"
+											dateTime={post.date}
+										>
 											{formatPostDate(post.date)}
 										</time>
 									)}
-									<ArrowUpRight size={24} aria-hidden="true" />
+									<ArrowUpRight
+										size={24}
+										aria-hidden="true"
+									/>
 								</Link>
 							</li>
 						))}

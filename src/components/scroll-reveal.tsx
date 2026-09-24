@@ -15,7 +15,8 @@ export function ScrollReveal({ children }: { children: ReactNode }) {
 			return;
 		}
 
-		const elements = container.querySelectorAll<HTMLElement>("[data-reveal]");
+		const elements =
+			container.querySelectorAll<HTMLElement>("[data-reveal]");
 		const observer = new IntersectionObserver(
 			(entries) => {
 				for (const entry of entries) {
@@ -38,7 +39,8 @@ export function ScrollReveal({ children }: { children: ReactNode }) {
 
 		return () => {
 			observer.disconnect();
-			for (const element of elements) element.setAttribute("data-reveal", "");
+			for (const element of elements)
+				element.setAttribute("data-reveal", "");
 		};
 	}, []);
 

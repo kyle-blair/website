@@ -41,7 +41,10 @@ export default async function BlogPostPage({ params }: Props) {
 					<header className="blog-article__header">
 						<h1>{post.title}</h1>
 						{post.date && (
-							<time className="blog-post-date" dateTime={post.date}>
+							<time
+								className="blog-post-date"
+								dateTime={post.date}
+							>
 								{formatPostDate(post.date)}
 							</time>
 						)}

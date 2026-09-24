@@ -29,7 +29,10 @@ suite("Blog posts", () => {
 		assert.deepEqual(
 			posts.map(({ title, slug }) => ({ title, slug })),
 			[
-				{ title: "A small café experiment!", slug: "a-small-cafe-experiment" },
+				{
+					title: "A small café experiment!",
+					slug: "a-small-cafe-experiment",
+				},
 				{ title: "First post", slug: "first-post" },
 			],
 		);
@@ -41,8 +44,14 @@ suite("Blog posts", () => {
 
 	test("ambiguous post addresses fail with an actionable error", async (context) => {
 		const directory = await temporaryPosts(context);
-		await writeFile(path.join(directory, "one.md"), "# Same title!\n\nOne.");
-		await writeFile(path.join(directory, "two.md"), "# Same title?\n\nTwo.");
+		await writeFile(
+			path.join(directory, "one.md"),
+			"# Same title!\n\nOne.",
+		);
+		await writeFile(
+			path.join(directory, "two.md"),
+			"# Same title?\n\nTwo.",
+		);
 		await assert.rejects(
 			getPosts(directory),
 			/Multiple post titles produce \/blog\/same-title/,

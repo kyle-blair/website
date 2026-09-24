@@ -117,7 +117,11 @@ function mountSignalField(context: TestContext, reducedMotion = false) {
 			return glyphs;
 		},
 		frame(time: number) {
-			assert.equal(frames.size, 1, "exactly one animation frame is pending");
+			assert.equal(
+				frames.size,
+				1,
+				"exactly one animation frame is pending",
+			);
 			const [identifier, callback] = [...frames][0];
 			frames.delete(identifier);
 			callback(time);
@@ -195,7 +199,10 @@ suite("Signal field", () => {
 
 		const resumed = paused.frame(2116);
 		assert.deepEqual(resumed, reference.frame(166));
-		assert.ok(resumed[0].y > before[0].y, "the animation still moves forward");
+		assert.ok(
+			resumed[0].y > before[0].y,
+			"the animation still moves forward",
+		);
 		assert.deepEqual(paused.frame(2132), reference.frame(182));
 		assert.deepEqual(paused.frame(2148), reference.frame(198));
 	});

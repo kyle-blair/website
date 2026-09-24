@@ -9,7 +9,8 @@ function plainText(tokens: ReturnType<typeof markdown.parse>): string {
 	return tokens
 		.map((token) => {
 			if (token.children) return plainText(token.children);
-			if (token.type === "softbreak" || token.type === "hardbreak") return " ";
+			if (token.type === "softbreak" || token.type === "hardbreak")
+				return " ";
 			return token.nesting === 0 ? token.content : "";
 		})
 		.join("");
@@ -21,10 +22,14 @@ export async function getPosts(directory = postsDirectory) {
 		files
 			.filter((file) => file.isFile() && file.name.endsWith(".md"))
 			.map(async (file) => {
-				const source = await readFile(path.join(directory, file.name), "utf8");
+				const source = await readFile(
+					path.join(directory, file.name),
+					"utf8",
+				);
 				const tokens = markdown.parse(source, {});
 				const headings = tokens.filter(
-					(token) => token.type === "heading_open" && token.tag === "h1",
+					(token) =>
+						token.type === "heading_open" && token.tag === "h1",
 				);
 				if (
 					tokens[0]?.type !== "heading_open" ||
@@ -48,10 +53,16 @@ export async function getPosts(directory = postsDirectory) {
 					);
 				let date: string | undefined;
 				const dateLine =
-					tokens[3]?.type === "paragraph_open" ? tokens[4]?.content : undefined;
+					tokens[3]?.type === "paragraph_open"
+						? tokens[4]?.content
+						: undefined;
 				if (dateLine?.startsWith("Date:")) {
-					const match = /^Date:\s*(\d{4}-\d{2}-\d{2})$/.exec(dateLine.trim());
-					const parsedDate = match ? new Date(match[1]) : new Date(NaN);
+					const match = /^Date:\s*(\d{4}-\d{2}-\d{2})$/.exec(
+						dateLine.trim(),
+					);
+					const parsedDate = match
+						? new Date(match[1])
+						: new Date(NaN);
 					if (
 						!match ||
 						Number.isNaN(parsedDate.getTime()) ||
