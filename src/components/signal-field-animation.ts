@@ -67,10 +67,7 @@ export function startSignalField(
 		if (frameTime !== undefined) {
 			if (previousFrameTime !== undefined) {
 				// Resume gently if scrolling or a background tab paused drawing.
-				animationTime += Math.min(
-					frameTime - previousFrameTime,
-					50,
-				);
+				animationTime += Math.min(frameTime - previousFrameTime, 50);
 			}
 			previousFrameTime = frameTime;
 		}

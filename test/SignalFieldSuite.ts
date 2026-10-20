@@ -111,7 +111,9 @@ function mountSignalField(context: TestContext, reducedMotion = false) {
 
 suite("Signal field", () => {
 	test("a canvas without a two-dimensional context leaves the animation inactive", () => {
-		const canvas = { getContext: () => null } as unknown as HTMLCanvasElement;
+		const canvas = {
+			getContext: () => null,
+		} as unknown as HTMLCanvasElement;
 		assert.equal(startSignalField(canvas, {} as Window), undefined);
 	});
 	test("scroll-related window resizes leave an unchanged canvas and its characters intact", (context) => {

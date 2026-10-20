@@ -88,10 +88,22 @@ suite("Blog posts", () => {
 	test("posts sort by date, then title, with undated posts last", async (context) => {
 		const directory = await temporaryPosts(context);
 		await Promise.all([
-			writeFile(path.join(directory, "beta.md"), "# Beta\n\nDate: 2026-05-03\n\nBeta body."),
-			writeFile(path.join(directory, "alpha.md"), "# Alpha\n\nDate: 2026-05-03\n\nAlpha body."),
-			writeFile(path.join(directory, "earlier.md"), "# Earlier\n\nDate: 2025-12-31\n\nEarlier body."),
-			writeFile(path.join(directory, "undated.md"), "# Undated\n\nUndated body."),
+			writeFile(
+				path.join(directory, "beta.md"),
+				"# Beta\n\nDate: 2026-05-03\n\nBeta body.",
+			),
+			writeFile(
+				path.join(directory, "alpha.md"),
+				"# Alpha\n\nDate: 2026-05-03\n\nAlpha body.",
+			),
+			writeFile(
+				path.join(directory, "earlier.md"),
+				"# Earlier\n\nDate: 2025-12-31\n\nEarlier body.",
+			),
+			writeFile(
+				path.join(directory, "undated.md"),
+				"# Undated\n\nUndated body.",
+			),
 		]);
 		const posts = await getPosts(directory);
 		assert.deepEqual(
@@ -111,7 +123,12 @@ suite("Blog posts", () => {
 	test("invalid calendar dates and malformed date lines are rejected", async (context) => {
 		const directory = await temporaryPosts(context);
 		const file = path.join(directory, "dated.md");
-		for (const date of ["yesterday", "2026-02-30", "2026-13-01", "2026-05-03 extra"]) {
+		for (const date of [
+			"yesterday",
+			"2026-02-30",
+			"2026-13-01",
+			"2026-05-03 extra",
+		]) {
 			await writeFile(file, `# Dated\n\nDate: ${date}\n\nBody.`);
 			await assert.rejects(getPosts(directory), /valid calendar date/);
 		}
@@ -134,5 +151,4 @@ suite("Blog posts", () => {
 		assert.equal(post.title, "Meet zero four two");
 		assert.equal(post.slug, "meet-zero-four-two");
 	});
-
 });
