@@ -14,7 +14,7 @@ services:
             fromService:
                 type: web
                 name: zerofourtwo.com-storage
-                envVarKey: PUBLIC_SERVICE_URL
+                envVarKey: RENDER_EXTERNAL_URL
           - key: STORAGE_SERVICE_TOKEN
             fromService:
                 type: web
@@ -34,11 +34,6 @@ services:
       envVars:
           - key: STORAGE_SERVICE_TOKEN
             generateValue: true
-          - key: PUBLIC_SERVICE_URL
-            fromService:
-                type: web
-                name: zerofourtwo.com-storage
-                envVarKey: RENDER_EXTERNAL_URL
           - key: DATABASE_URL
             fromDatabase:
                 name: zerofourtwo.com-database
