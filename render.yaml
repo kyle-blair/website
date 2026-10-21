@@ -1,0 +1,55 @@
+services:
+    - type: web
+      name: zerofourtwo.com
+      runtime: docker
+      plan: 0.5c-512mb
+      region: oregon
+      dockerfilePath: ./containerfile
+      dockerContext: .
+      autoDeployTrigger: off
+      healthCheckPath: /api/health
+      maxShutdownDelaySeconds: 30
+      envVars:
+          - key: STORAGE_SERVICE_URL
+            fromService:
+                type: web
+                name: zerofourtwo.com-storage
+                envVarKey: PUBLIC_SERVICE_URL
+          - key: STORAGE_SERVICE_TOKEN
+            fromService:
+                type: web
+                name: zerofourtwo.com-storage
+                envVarKey: STORAGE_SERVICE_TOKEN
+
+    - type: web
+      name: zerofourtwo.com-storage
+      runtime: docker
+      plan: 0.5c-512mb
+      region: oregon
+      dockerfilePath: ./services/storage/containerfile
+      dockerContext: ./services/storage
+      autoDeployTrigger: checksPass
+      healthCheckPath: /health/live
+      maxShutdownDelaySeconds: 30
+      envVars:
+          - key: STORAGE_SERVICE_TOKEN
+            generateValue: true
+          - key: PUBLIC_SERVICE_URL
+            fromService:
+                type: web
+                name: zerofourtwo.com-storage
+                envVarKey: RENDER_EXTERNAL_URL
+          - key: DATABASE_URL
+            fromDatabase:
+                name: zerofourtwo.com-database
+                property: connectionString
+
+databases:
+    - name: zerofourtwo.com-database
+      plan: 0.1c-256mb
+      region: oregon
+      postgresMajorVersion: "18"
+      databaseName: website
+      user: storage_service
+      ipAllowList: []
+      diskSizeGB: 1

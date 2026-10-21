@@ -1,0 +1,6 @@
+export function GET() {
+	return Response.json(
+		{ ready: true },
+		{ headers: { "Cache-Control": "no-store" } },
+	);
+}

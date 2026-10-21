@@ -5,6 +5,7 @@ WORKDIR /app
 ENV NEXT_TELEMETRY_DISABLED=1
 
 COPY package.json package-lock.json ./
+COPY services/storage/package.json services/storage/package-lock.json ./services/storage/
 RUN npm clean-install --include=dev
 
 COPY next.config.ts tsconfig.json ./

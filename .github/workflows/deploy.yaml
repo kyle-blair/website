@@ -11,4 +11,4 @@ jobs:
             - name: deploy
               env:
                   deploy_url: ${{ secrets.DEPLOY_HOOK_URL }}
-              run: curl "$deploy_url"
+              run: curl --fail --silent --show-error --get --data-urlencode "ref=${GITHUB_SHA}" "$deploy_url"

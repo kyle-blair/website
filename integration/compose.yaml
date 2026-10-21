@@ -1,0 +1,54 @@
+services:
+    website:
+        ports: !reset []
+        healthcheck:
+            test:
+                - CMD-SHELL
+                - >-
+                    node --input-type=module --eval 'const response = await fetch("http://127.0.0.1:10000/api/health"); process.exit(response.ok ? 0 : 1)'
+            interval: 5s
+            timeout: 3s
+            retries: 10
+
+    storage:
+        healthcheck:
+            test:
+                - CMD-SHELL
+                - >-
+                    node --input-type=module --eval 'const response = await fetch("http://127.0.0.1:10000/health/live"); process.exit(response.ok ? 0 : 1)'
+
+    dependency-tests:
+        build:
+            context: .
+            dockerfile: integration/containerfile
+        command: [node, --test, integration/DependencySuite.ts]
+        environment:
+            STORAGE_SERVICE_URL: http://storage:10000
+            STORAGE_SERVICE_TOKEN: ${STORAGE_SERVICE_TOKEN:?Set STORAGE_SERVICE_TOKEN}
+        networks: [storage]
+
+    storage-tests:
+        build:
+            context: .
+            dockerfile: integration/containerfile
+        command: [node, --test, integration/StorageSuite.ts]
+        environment:
+            STORAGE_SERVICE_URL: http://storage:10000
+            STORAGE_SERVICE_TOKEN: ${STORAGE_SERVICE_TOKEN:?Set STORAGE_SERVICE_TOKEN}
+        depends_on:
+            storage:
+                condition: service_healthy
+        networks: [storage]
+
+    website-tests:
+        build:
+            context: .
+            dockerfile: integration/containerfile
+        command: [node, --test, integration/WebsiteSuite.ts]
+        environment:
+            STORAGE_SERVICE_URL: http://storage:10000
+            STORAGE_SERVICE_TOKEN: ${STORAGE_SERVICE_TOKEN:?Set STORAGE_SERVICE_TOKEN}
+        depends_on:
+            website:
+                condition: service_healthy
+        networks: [storage]
