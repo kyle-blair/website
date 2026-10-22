@@ -78,8 +78,58 @@ if [[ "$ready" != true ]]; then
     exit 1
 fi
 
+identifier=$(docker-compose ps --all --quiet telemetry)
+podman start "$identifier"
+ready=false
+for attempt in {1..30}; do
+    if podman exec "$storage_identifier" node --input-type=module --eval \
+        'const response = await fetch("http://telemetry:13133"); process.exit(response.ok ? 0 : 1)'; then
+        ready=true
+        break
+    fi
+    sleep 1
+done
+if [[ "$ready" != true ]]; then
+    podman logs "$identifier"
+    exit 1
+fi
+
 for suite in storage-tests website-tests; do
     printf 'Running %s inside the disposable integration runner.\n' "$suite"
     identifier=$(docker-compose ps --all --quiet "$suite")
     podman start --attach "$identifier"
 done
+
+printf 'Investigating telemetry export during standalone server shutdown.\n'
+identifier=$(docker-compose ps --all --quiet website)
+podman exec --interactive "$identifier" node --input-type=module < integration/shutdown-probe.mjs
+
+identifier=$(docker-compose ps --all --quiet telemetry)
+telemetry_output=$(podman logs "$identifier" 2>&1)
+for library in '@opentelemetry/instrumentation-http' '@fastify/otel' '@opentelemetry/instrumentation-pg'; do
+    if [[ "$telemetry_output" != *"$library"* ]]; then
+        printf 'Collector did not report automatic instrumentation from %s.\n' "$library" >&2
+        exit 1
+    fi
+done
+
+printf 'Verifying telemetry survives collector replacement.\n'
+bash integration/telemetry-persistence.sh "$storage_identifier" "$identifier"
+
+printf 'Verifying published pages without storage or telemetry.\n'
+for service in telemetry storage; do
+    identifier=$(docker-compose ps --all --quiet "$service")
+    podman stop "$identifier"
+done
+identifier=$(docker-compose ps --all --quiet unavailable-tests)
+podman start --attach "$identifier"
+
+printf 'Verifying website shutdown while telemetry is unavailable.\n'
+identifier=$(docker-compose ps --all --quiet website)
+podman stop --time 28 "$identifier"
+exit_status=$(podman inspect --format '{{.State.ExitCode}}' "$identifier")
+if [[ "$exit_status" != 143 ]]; then
+    printf 'Website shutdown failed with exit status %s.\n' "$exit_status" >&2
+    podman logs "$identifier"
+    exit 1
+fi

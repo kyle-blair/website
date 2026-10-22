@@ -24,11 +24,10 @@ export class HttpsStorage implements PersistentStorage {
 			this.address.hash ||
 			this.address.pathname !== "/" ||
 			!token.trim()
-		) {
+		)
 			throw new TypeError(
 				"A storage service requires an HTTPS origin and a credential.",
 			);
-		}
 		this.token = token;
 		this.fetcher = fetcher;
 	}
@@ -41,9 +40,8 @@ export class HttpsStorage implements PersistentStorage {
 			entry === null ||
 			(entry.found !== false &&
 				!(entry.found === true && Object.hasOwn(entry, "value")))
-		) {
+		)
 			throw new Error("Invalid storage response.");
-		}
 		return entry;
 	}
 
@@ -55,9 +53,8 @@ export class HttpsStorage implements PersistentStorage {
 			"/increment",
 		);
 		const result = await response.json();
-		if (!Number.isSafeInteger(result?.value) || result.value < 0) {
+		if (!Number.isSafeInteger(result?.value) || result.value < 0)
 			throw new Error("Invalid counter response.");
-		}
 		return result.value;
 	}
 
@@ -84,9 +81,7 @@ export class HttpsStorage implements PersistentStorage {
 				signal: AbortSignal.timeout(3000),
 			},
 		);
-		if (!response.ok) {
-			throw new Error("Storage service unavailable.");
-		}
+		if (!response.ok) throw new Error("Storage service unavailable.");
 		return response;
 	}
 }

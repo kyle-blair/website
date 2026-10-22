@@ -75,9 +75,9 @@ export function SiteVisitorDetails() {
 				</output>
 			</p>
 			<p className="visitor-privacy__note">
-				This website and its owner respect your privacy. Nothing about
-				your visit is stored beyond an aggregate &quot;hit
-				counter&quot;.
+				Your network address is displayed here and is not stored. This
+				site records aggregate page views and service diagnostics
+				without visitor identifiers.
 			</p>
 		</div>
 	);

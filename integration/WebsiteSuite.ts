@@ -30,8 +30,21 @@ suite("Website, storage, and PostgreSQL containers", { timeout: 30000 }, () => {
 		});
 		assert.equal(response.status, 200);
 		const html = await response.text();
+		const stylesheet = html.match(/href="([^"]+\.css(?:\?[^"]*)?)"/);
+		assert.ok(stylesheet, "The standalone page must include a stylesheet");
+		const styles = await fetch(new URL(stylesheet[1], origin));
+		assert.equal(styles.status, 200);
+		assert.match(styles.headers.get("content-type") ?? "", /text\/css/);
 		assert.match(html, /<main[\s>]/);
+		assert.match(
+			html,
+			/<main\b[^>]*>\s*<nav\b[^>]*aria-label="Page location"/,
+		);
 		assert.match(html, /aria-label="Loading page views"/);
+		assert.equal(
+			[...html.matchAll(/aria-label="Loading page views"/g)].length,
+			1,
+		);
 		assert.equal(html.includes(process.env.STORAGE_SERVICE_TOKEN!), false);
 		assert.equal(await readCount("hits:page:/"), before);
 	});
@@ -113,4 +126,131 @@ suite("Website, storage, and PostgreSQL containers", { timeout: 30000 }, () => {
 		});
 		assert.equal(health.status, 200);
 	});
+
+	test("reads ancestor counts without recording additional visits", async () => {
+		for (const path of ["/", "/blog"]) {
+			const before = await readCount(`hits:page:${path}`);
+			const response = await fetch(
+				new URL(
+					`/api/page-hits?path=${encodeURIComponent(path)}`,
+					origin,
+				),
+				{ signal: AbortSignal.timeout(5000) },
+			);
+			assert.equal(response.status, 200);
+			assert.deepEqual(await response.json(), { count: before });
+			assert.equal(await readCount(`hits:page:${path}`), before);
+		}
+	});
+	test("exports traces, metrics, and logs to the collector", async () => {
+		const operationId = crypto.randomUUID();
+		assert.equal((await pageView("/", operationId)).status, 200);
+		assert.equal((await pageView("/blog", operationId)).status, 503);
+		await pageView("/");
+		let metrics = "";
+		for (let attempt = 0; attempt < 15; attempt++) {
+			const response = await fetch("http://telemetry:8888/metrics", {
+				signal: AbortSignal.timeout(2000),
+			});
+			metrics = await response.text();
+			if (
+				["spans", "metric_points", "log_records"].every((signal) =>
+					new RegExp(
+						`otelcol_receiver_accepted_${signal}(?:_total)?\\{[^\\n]*\\} [1-9]`,
+					).test(metrics),
+				)
+			)
+				return;
+			await new Promise((resolve) => setTimeout(resolve, 1000));
+		}
+		assert.fail(`Collector did not receive all signals: ${metrics}`);
+	});
+
+	test("renders reusable feedback controls above and below each blog post", async () => {
+		const response = await fetch(
+			new URL("/blog/my-favorite-software-defect", origin),
+		);
+		assert.equal(response.status, 200);
+		const html = await response.text();
+		assert.equal([...html.matchAll(/aria-label="Feedback"/g)].length, 2);
+		assert.equal([...html.matchAll(/aria-label="Like"/g)].length, 2);
+		assert.equal([...html.matchAll(/aria-label="Dislike"/g)].length, 2);
+	});
+
+	for (const subject of [
+		"/blog/my-favorite-software-defect",
+		"item:example:first",
+		"item:example:second",
+	]) {
+		test("persists anonymous feedback and deduplicates retries through all services", async () => {
+			const likes = await readCount(`likes:${subject}`);
+			const dislikes = await readCount(`dislikes:${subject}`);
+			const get = () =>
+				fetch(
+					new URL(
+						`/api/feedback?subject=${encodeURIComponent(subject)}`,
+						origin,
+					),
+				);
+			const before = await get();
+			assert.equal(before.status, 200);
+			assert.deepEqual(await before.json(), { likes, dislikes });
+			const operationId = crypto.randomUUID();
+			for (const identifier of [operationId, operationId.toUpperCase()]) {
+				const response = await fetch(new URL("/api/feedback", origin), {
+					method: "POST",
+					headers: {
+						"content-type": "application/json",
+						"sec-fetch-site": "same-origin",
+					},
+					body: JSON.stringify({
+						subject,
+						reaction: "like",
+						operationId: identifier,
+					}),
+				});
+				assert.equal(response.status, 200);
+				assert.equal(
+					response.headers.get("cache-control"),
+					"private, no-store",
+				);
+				assert.deepEqual(await response.json(), {
+					likes: likes + 1,
+					dislikes,
+				});
+			}
+			const response = await fetch(new URL("/api/feedback", origin), {
+				method: "POST",
+				headers: {
+					"content-type": "application/json",
+					"sec-fetch-site": "same-origin",
+				},
+				body: JSON.stringify({
+					subject,
+					reaction: "dislike",
+					operationId: crypto.randomUUID(),
+				}),
+			});
+			assert.equal(response.status, 200);
+			assert.deepEqual(await response.json(), {
+				likes: likes + 1,
+				dislikes: dislikes + 1,
+			});
+			const rejected = await fetch(new URL("/api/feedback", origin), {
+				method: "POST",
+				headers: {
+					"content-type": "application/json",
+					"sec-fetch-site": "cross-site",
+				},
+				body: JSON.stringify({
+					subject,
+					reaction: "like",
+					operationId: crypto.randomUUID(),
+				}),
+			});
+			assert.equal(rejected.status, 403);
+			assert.equal(await readCount(`likes:${subject}`), likes + 1);
+			assert.equal(await readCount(`dislikes:${subject}`), dislikes + 1);
+		});
+	}
 });

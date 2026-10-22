@@ -1,4 +1,5 @@
 import Fastify from "fastify";
+import { recordFailure } from "../../../shared/telemetry.ts";
 import bearerAuth from "@fastify/bearer-auth";
 import { StorageConflict, type PersistentStorage } from "./postgres-storage.ts";
 
@@ -28,6 +29,7 @@ export function createApplication(store: PersistentStorage, token: string) {
 				.code(status)
 				.send({ error: "Invalid storage request" });
 		}
+		recordFailure("storage.request", error);
 		return reply.code(503).send({ error: "Storage unavailable" });
 	});
 	app.get("/health/live", async () => ({ live: true }));

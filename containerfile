@@ -5,11 +5,11 @@ WORKDIR /app
 ENV NEXT_TELEMETRY_DISABLED=1
 
 COPY package.json package-lock.json ./
-COPY services/storage/package.json services/storage/package-lock.json ./services/storage/
 RUN npm clean-install --include=dev
 
 COPY next.config.ts tsconfig.json ./
 COPY src ./src
+COPY shared ./shared
 RUN npm run build
 
 FROM node:24.19.0-bookworm-slim AS runner
@@ -21,7 +21,6 @@ ENV NODE_ENV=production \
     PORT=10000
 
 COPY --from=builder --chown=node:node /app/.next/standalone ./
-COPY --from=builder --chown=node:node /app/.next/static ./.next/static
 
 USER node
 EXPOSE 10000

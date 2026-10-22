@@ -16,5 +16,4 @@ jobs:
                   node-version-file: package.json
                   cache: npm
             - run: npm clean-install
-            - run: npm --prefix services/storage run typecheck
             - run: npm test

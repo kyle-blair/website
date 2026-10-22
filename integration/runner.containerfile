@@ -22,8 +22,10 @@ COPY integration/runner-storage.conf /home/runner/.config/containers/storage.con
 WORKDIR /workspace
 COPY --chown=runner:runner compose.yaml containerfile package.json package-lock.json next.config.ts tsconfig.json ./
 COPY --chown=runner:runner src ./src
+COPY --chown=runner:runner shared ./shared
 COPY --chown=runner:runner services/storage/containerfile services/storage/package.json services/storage/package-lock.json ./services/storage/
 COPY --chown=runner:runner services/storage/src ./services/storage/src
+COPY --chown=runner:runner services/telemetry ./services/telemetry
 COPY --chown=runner:runner integration ./integration
 ENV XDG_RUNTIME_DIR=/home/runner/.run \
     DOCKER_HOST=unix:///home/runner/.run/podman.sock \

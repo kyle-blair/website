@@ -87,13 +87,13 @@ suite("Page hit count", () => {
 			requests.push(options!);
 			return pending;
 		});
-		assert.match(container.textContent!, /loading/);
+		assert.equal(container.textContent, "views: ?");
 		assert.equal(
 			container.querySelector("output")!.getAttribute("aria-busy"),
 			"true",
 		);
 		await act(async () => complete(Response.json({ count: 1234 })));
-		assert.match(container.textContent!, /1,234/);
+		assert.match(container.textContent!, /views: 1,234/);
 		assert.equal(
 			container.querySelector("output")!.getAttribute("aria-busy"),
 			"false",
@@ -131,7 +131,7 @@ suite("Page hit count", () => {
 			const { container } = await mount(context, async () => reply());
 			assert.match(
 				container.textContent!,
-				name === "zero" ? /page views 0/ : /unavailable/,
+				name === "zero" ? /views: 0/ : /\?/,
 			);
 		});
 	}
@@ -162,7 +162,7 @@ suite("Page hit count", () => {
 					);
 				},
 			);
-			assert.match(container.textContent!, /unavailable/);
+			assert.equal(container.textContent, "views: ?");
 			assert.equal(requests, 0);
 		});
 	}
@@ -171,7 +171,10 @@ suite("Page hit count", () => {
 		const { container } = await mount(context, async () => {
 			throw new Error("network unavailable");
 		});
-		assert.match(container.textContent!, /unavailable/);
+		assert.equal(container.textContent, "views: ?");
+		assert.ok(
+			container.querySelector('[aria-label="Page views unavailable"]'),
+		);
 	});
 
 	test("aborts requests when unmounted", async (context) => {

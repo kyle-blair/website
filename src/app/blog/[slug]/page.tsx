@@ -3,6 +3,7 @@ import { ArrowLeft } from "lucide-react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { formatPostDate, getPost, getPosts } from "../posts";
+import { Feedback } from "@/components/feedback";
 
 type Props = { params: Promise<{ slug: string }> };
 
@@ -32,11 +33,8 @@ export default async function BlogPostPage({ params }: Props) {
 	const post = await getPost(slug);
 	if (!post) notFound();
 	return (
-		<div className="blog-article-page">
-			<div className="blog-article container">
-				<Link className="text-link" href="/blog">
-					<ArrowLeft size={16} aria-hidden="true" /> all posts
-				</Link>
+		<div className="blog-article-page container">
+			<div className="blog-article">
 				<article>
 					<header className="blog-article__header">
 						<h1>{post.title}</h1>
@@ -49,11 +47,16 @@ export default async function BlogPostPage({ params }: Props) {
 							</time>
 						)}
 					</header>
-					<div
-						className="blog-prose"
-						dangerouslySetInnerHTML={{ __html: post.body }}
-					/>
+					<Feedback subject={`/blog/${post.slug}`}>
+						<div
+							className="blog-prose"
+							dangerouslySetInnerHTML={{ __html: post.body }}
+						/>
+					</Feedback>
 				</article>
+				<Link className="text-link" href="/blog">
+					<ArrowLeft size={16} aria-hidden="true" /> all posts
+				</Link>
 			</div>
 		</div>
 	);

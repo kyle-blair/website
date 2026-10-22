@@ -2,6 +2,8 @@ import type { Metadata, Viewport } from "next";
 import { IBM_Plex_Mono } from "next/font/google";
 import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
+import { PageNavigation } from "@/components/page-navigation";
+import { getPosts } from "./blog/posts";
 import "./globals.css";
 
 const brandFont = IBM_Plex_Mono({
@@ -33,9 +35,18 @@ export const viewport: Viewport = {
 	themeColor: "#0a0a0a",
 };
 
-export default function RootLayout({
+export default async function RootLayout({
 	children,
 }: Readonly<{ children: React.ReactNode }>) {
+	const pages = [
+		{ path: "/", title: "home" },
+		{ path: "/blog", title: "blog" },
+		...(await getPosts()).map((post) => ({
+			path: `/blog/${post.slug}`,
+			title: post.title,
+		})),
+		{ path: "/contact", title: "contact" },
+	];
 	return (
 		<html
 			className={brandFont.variable}
@@ -47,7 +58,10 @@ export default function RootLayout({
 					skip to content
 				</a>
 				<SiteHeader />
-				<main id="main-content">{children}</main>
+				<main id="main-content">
+					<PageNavigation pages={pages} />
+					{children}
+				</main>
 				<SiteFooter />
 			</body>
 		</html>

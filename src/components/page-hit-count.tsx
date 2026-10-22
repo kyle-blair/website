@@ -52,19 +52,21 @@ export function PageHitCount({ path }: { path: string }) {
 	}, [path]);
 
 	return (
-		<p className="page-hit-count">
-			<span>page views</span>{" "}
+		<span className="page-hit-count">
+			<span>views:</span>{" "}
 			<output aria-live="polite" aria-busy={state.status === "loading"}>
 				{state.status === "loading" ? (
 					<span role="status" aria-label="Loading page views">
-						loading…
+						?
 					</span>
 				) : state.status === "ready" ? (
 					state.count.toLocaleString("en-US")
 				) : (
-					"unavailable"
+					<span role="status" aria-label="Page views unavailable">
+						?
+					</span>
 				)}
 			</output>
-		</p>
+		</span>
 	);
 }

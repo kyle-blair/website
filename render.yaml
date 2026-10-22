@@ -6,10 +6,13 @@ services:
       region: oregon
       dockerfilePath: ./containerfile
       dockerContext: .
-      autoDeployTrigger: off
+      branch: main
+      autoDeployTrigger: checksPass
       healthCheckPath: /api/health
       maxShutdownDelaySeconds: 30
       envVars:
+          - key: OTEL_EXPORTER_OTLP_ENDPOINT
+            sync: false
           - key: STORAGE_SERVICE_URL
             fromService:
                 type: web
@@ -27,17 +30,37 @@ services:
       plan: 0.5c-512mb
       region: oregon
       dockerfilePath: ./services/storage/containerfile
-      dockerContext: ./services/storage
+      dockerContext: .
+      branch: main
       autoDeployTrigger: checksPass
       healthCheckPath: /health/live
       maxShutdownDelaySeconds: 30
       envVars:
+          - key: OTEL_EXPORTER_OTLP_ENDPOINT
+            sync: false
           - key: STORAGE_SERVICE_TOKEN
             generateValue: true
           - key: DATABASE_URL
             fromDatabase:
                 name: zerofourtwo.com-database
                 property: connectionString
+
+    - type: pserv
+      name: zerofourtwo.com-telemetry
+      runtime: docker
+      plan: 0.5c-512mb
+      region: oregon
+      dockerfilePath: ./services/telemetry/containerfile
+      dockerContext: ./services/telemetry
+      branch: main
+      autoDeployTrigger: checksPass
+      disk:
+          name: telemetry-data
+          mountPath: /var/data
+          sizeGB: 1
+      envVars:
+          - key: PORT
+            value: "4318"
 
 databases:
     - name: zerofourtwo.com-database

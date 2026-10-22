@@ -1,6 +1,7 @@
 import { Pool } from "pg";
 import { createApplication } from "./application.ts";
 import { PostgresStorage } from "./postgres-storage.ts";
+import { telemetry } from "./instrumentation.ts";
 
 const pool = new Pool({
 	connectionString: process.env.DATABASE_URL,
@@ -18,6 +19,7 @@ let cleanup: ReturnType<typeof setInterval> | undefined;
 app.addHook("onClose", async () => {
 	clearInterval(cleanup);
 	await pool.end();
+	await telemetry?.shutdown().catch(() => {});
 });
 
 try {

@@ -9,19 +9,18 @@ services:
             STORAGE_SERVICE_URL: http://storage:10000
             STORAGE_SERVICE_TOKEN: ${STORAGE_SERVICE_TOKEN:?Set STORAGE_SERVICE_TOKEN}
             STORAGE_ALLOW_HTTP: "true"
-        depends_on:
-            storage:
-                condition: service_healthy
+            OTEL_EXPORTER_OTLP_ENDPOINT: http://telemetry:4318
         networks: [public, storage]
         restart: unless-stopped
         stop_grace_period: 30s
 
     storage:
         build:
-            context: ./services/storage
-            dockerfile: containerfile
+            context: .
+            dockerfile: services/storage/containerfile
         environment:
             STORAGE_SERVICE_TOKEN: ${STORAGE_SERVICE_TOKEN:?Set STORAGE_SERVICE_TOKEN}
+            OTEL_EXPORTER_OTLP_ENDPOINT: http://telemetry:4318
             PGHOST: database
             PGPORT: "5432"
             PGDATABASE: website
@@ -42,6 +41,16 @@ services:
             interval: 5s
             timeout: 3s
             retries: 10
+        networks: [storage]
+        restart: unless-stopped
+        stop_grace_period: 30s
+
+    telemetry:
+        build:
+            context: ./services/telemetry
+            dockerfile: containerfile
+        volumes:
+            - telemetry-data:/var/data
         networks: [storage]
         restart: unless-stopped
         stop_grace_period: 30s
@@ -71,3 +80,4 @@ networks:
 
 volumes:
     postgres-data:
+    telemetry-data:

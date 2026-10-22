@@ -456,6 +456,7 @@ suite("Page hit endpoint", () => {
 			{ path: "/", operationId: "invalid" },
 			{ path: "/?person=123", operationId },
 			{ path: "/missing", operationId },
+			{ path: "/%", operationId },
 		]) {
 			assert.equal((await endpoint.handle(request(body))).status, 400);
 		}

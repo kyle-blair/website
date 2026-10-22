@@ -2,40 +2,68 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-for dependency in node npm openssl; do
+for dependency in node npm; do
     if ! command -v "$dependency" >/dev/null 2>&1; then
         printf 'Missing required command: %s. Make it available on PATH and retry.\n' "$dependency" >&2
         exit 127
     fi
 done
+if [[ ! -d node_modules ]]; then
+    printf 'Project dependencies are missing. Run npm clean-install from the repository root.\n' >&2
+    exit 1
+fi
 
+start_website() {
+    local exit_status
+    printf 'Starting the website with live reloading.\n'
+    if npm exec -- next dev "$@"; then
+        return 0
+    else
+        exit_status=$?
+    fi
+    if [[ "$exit_status" != 130 && "$exit_status" != 143 ]]; then
+        printf 'Website exited with status %s. Review the Next.js error above and retry npm run dev. If its port is occupied, stop the process using it or choose another port with npm run dev -- --port 3001.\n' "$exit_status" >&2
+    fi
+    return "$exit_status"
+}
+start_without_services() {
+    printf 'Starting the website without backing services. Page counts and feedback will be unavailable.\n'
+    start_website "$@"
+    exit 0
+}
+if [[ "${1:-}" == --without-services ]]; then
+    shift
+    start_without_services "$@"
+fi
 if command -v docker >/dev/null 2>&1; then
     container_engine=docker
 elif command -v podman >/dev/null 2>&1; then
     container_engine=podman
 else
-    printf 'Missing container engine. Docker or Podman with Compose support must be available on PATH.\n' >&2
-    exit 127
+    printf 'No container engine found. Install Docker or Podman with Compose support and make it available on PATH, then retry npm run dev.\n' >&2
+    start_without_services "$@"
 fi
-
 if ! "$container_engine" compose version >/dev/null; then
-    printf '\n%s compose could not run. Check that its Compose provider is installed and available to this command. See the provider error above.\n' "$container_engine" >&2
-    exit 1
+    printf 'Cannot run %s Compose. Install or repair its Compose provider, verify with %s compose version, then retry npm run dev.\n' "$container_engine" "$container_engine" >&2
+    start_without_services "$@"
 fi
 if ! "$container_engine" info >/dev/null; then
-    printf '\nCannot connect to %s. Start the container engine and check your connection and access permissions. See the engine error above.\n' "$container_engine" >&2
-    exit 1
+    if [[ "$container_engine" == podman ]]; then
+        printf 'Cannot connect to Podman. On macOS or Windows, start its machine with podman machine start. Check the connection with podman info, then retry npm run dev.\n' >&2
+    else
+        printf 'Cannot connect to Docker. Start Docker Desktop or the Docker daemon and check your connection and permissions with docker info, then retry npm run dev.\n' >&2
+    fi
+    start_without_services "$@"
 fi
-if [[ ! -d node_modules ]]; then
-    printf 'Project dependencies are missing. Run npm clean-install from the repository root.\n' >&2
-    exit 1
+if ! command -v openssl >/dev/null 2>&1; then
+    printf 'Missing openssl for local service credentials. Install OpenSSL and make it available on PATH, then retry npm run dev.\n' >&2
+    start_without_services "$@"
 fi
 
 compose() {
     "$container_engine" compose "$@"
 }
 export COMPOSE_FILE=compose.yaml:development/compose.yaml
-
 printf 'Preparing local service credentials in .env with owner-only file permissions.\n'
 umask 077
 touch .env
@@ -49,19 +77,102 @@ for credential in STORAGE_SERVICE_TOKEN POSTGRES_PASSWORD; do
         printf 'Generated and saved a random %s for subsequent sessions.\n' "$credential"
     fi
 done
-
 STORAGE_SERVICE_TOKEN=$(node --env-file=.env --print 'process.env.STORAGE_SERVICE_TOKEN')
 export STORAGE_SERVICE_TOKEN
 export STORAGE_SERVICE_URL=http://127.0.0.1:10001 STORAGE_ALLOW_HTTP=true
 
+report_service_failure() {
+    printf 'Could not start local services: %s. Review the error or container status above.\n' "$*" >&2
+    printf 'Inspect container status: %s compose --file compose.yaml --file development/compose.yaml ps\n' "$container_engine" >&2
+    printf 'Inspect their logs: %s compose --file compose.yaml --file development/compose.yaml logs --tail 50 %s\n' "$container_engine" "$*" >&2
+    printf 'Correct the reported problem, then stop this development session and retry npm run dev. For an occupied port, stop the conflicting process or container first.\n' >&2
+}
+
+service_container() {
+    local service=$1 identifiers identifier container_service
+    identifiers=$(compose ps --quiet) || return 1
+    for identifier in $identifiers; do
+        container_service=$("$container_engine" inspect --format '{{index .Config.Labels "com.docker.compose.service"}}' "$identifier") || return 1
+        if [[ "$container_service" == "$service" ]]; then
+            printf '%s\n' "$identifier"
+            return 0
+        fi
+    done
+    return 1
+}
+
+wait_for_service() {
+    local service=$1 identifier state container_status health_status attempt
+    if ! identifier=$(service_container "$service") || [[ -z "$identifier" ]]; then
+        printf 'No container could be found for %s.\n' "$service" >&2
+        return 1
+    fi
+    for ((attempt=0; attempt<60; attempt++)); do
+        if ! state=$("$container_engine" inspect --format '{{.State.Status}} {{if .State.Health}}{{.State.Health.Status}}{{end}}' "$identifier"); then
+            printf 'Could not inspect the %s container.\n' "$service" >&2
+            return 1
+        fi
+        read -r container_status health_status <<< "$state"
+        if [[ "$container_status" == running && ( -z "$health_status" || "$health_status" == healthy ) ]]; then
+            if [[ "$service" == storage ]] && ! "$container_engine" exec "$identifier" node --input-type=module --eval 'try { const response = await fetch("http://127.0.0.1:10000/health/ready", {signal: AbortSignal.timeout(5000)}); process.exit(response.ok ? 0 : 1); } catch { process.exit(1); }'; then
+                printf 'Storage cannot use PostgreSQL. Check database logs for authentication or schema errors. Existing database volumes retain their original accounts and passwords; restore matching credentials or migrate the database account.\n' >&2
+                return 1
+            fi
+            printf 'Local service %s is running%s.\n' "$service" "${health_status:+ and healthy}"
+            return 0
+        fi
+        if [[ "$container_status" == exited || "$container_status" == dead || "$health_status" == unhealthy ]]; then
+            printf '%s: %s\n' "$service" "$state" >&2
+            return 1
+        fi
+        sleep 1
+    done
+    printf '%s did not become ready after 60 checks, one second apart. Last container status: %s\n' "$service" "$state" >&2
+    return 1
+}
+
+start_services() {
+    local service failed=0
+    printf 'Building and starting local services: %s.\n' "$*"
+    if ! compose up --detach --build "$@"; then
+        report_service_failure "$@"
+        return 1
+    fi
+    for service in "$@"; do
+        if ! wait_for_service "$service"; then
+            if [[ "$service" == storage ]]; then
+                report_service_failure database storage
+            else
+                report_service_failure "$service"
+            fi
+            failed=1
+        fi
+    done
+    return "$failed"
+}
+
+start_backing_services() {
+    local failed=0
+    start_services database storage || failed=1
+    if start_services telemetry; then
+        export OTEL_EXPORTER_OTLP_ENDPOINT=${OTEL_EXPORTER_OTLP_ENDPOINT:-http://127.0.0.1:4318}
+    else
+        printf 'Telemetry collector unavailable; continuing without configuring local telemetry export.\n' >&2
+        failed=1
+    fi
+    return "$failed"
+}
+
 cleanup() {
     printf 'Stopping local services; retaining the database volume and saved credentials.\n'
-    compose stop storage database
+    if ! compose stop storage database telemetry; then
+        printf 'Local service cleanup failed. Stop remaining containers with: %s compose --file compose.yaml --file development/compose.yaml stop storage database telemetry\n' "$container_engine" >&2
+    fi
 }
 trap cleanup EXIT
 trap 'exit 130' INT
 trap 'exit 143' TERM
-printf 'Building storage and PostgreSQL containers and waiting for readiness.\n'
-compose up --detach --build --wait storage
-printf 'Starting the website with live reloading. Credential values are not printed.\n'
-npm exec -- next dev "$@"
+if ! start_backing_services; then
+    printf 'Local services are unavailable; retaining the database volume and saved credentials. Review the errors above and retry npm run dev after correcting the problem. The website will continue with unavailable features.\n' >&2
+fi
+start_website "$@"

@@ -1,4 +1,3 @@
-import { PageHitCounter } from "./page-hit-counter";
 import { BrandMark } from "./brand-mark";
 import { SiteNavigationLinks } from "./site-navigation-links";
 import { SiteVisitorDetails } from "./site-visitor-details";
@@ -13,7 +12,6 @@ export function SiteFooter() {
 						<SiteNavigationLinks />
 					</nav>
 				</div>
-				<PageHitCounter />
 				<SiteVisitorDetails />
 			</div>
 		</footer>
