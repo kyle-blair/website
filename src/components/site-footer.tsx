@@ -1,15 +1,9 @@
-import { SiteNavigationLinks } from "./site-navigation-links";
-import { SiteVisitorDetails } from "./site-visitor-details";
+import { SiteNavigation } from "./site-navigation";
 
 export function SiteFooter() {
 	return (
 		<footer className="site-footer">
-			<div className="site-footer__inner">
-				<nav aria-label="Footer navigation">
-					<SiteNavigationLinks />
-				</nav>
-				<SiteVisitorDetails />
-			</div>
+			<SiteNavigation label="Footer navigation" />
 		</footer>
 	);
 }

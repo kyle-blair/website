@@ -66,6 +66,53 @@ const pages = [
 ];
 
 suite("Page navigation", () => {
+	test("keeps the path on one line, truncates the current title, and aligns view text on a shared baseline", () => {
+		Object.assign(globalThis, { navigationPath: pages[2].path });
+		const dom = new JSDOM(
+			renderToString(createElement(PageNavigation, { pages })),
+		);
+		const stylesheet = dom.window.document.createElement("style");
+		stylesheet.textContent = readFileSync(
+			new URL("../src/app/globals.css", import.meta.url),
+			"utf8",
+		);
+		dom.window.document.head.append(stylesheet);
+		const document = dom.window.document;
+		const computed = (selector: string) =>
+			dom.window.getComputedStyle(document.querySelector(selector)!);
+		try {
+			assert.equal(computed(".page-navigation ol").flexWrap, "nowrap");
+			assert.equal(computed(".page-navigation li").flexShrink, "0");
+			assert.equal(
+				computed(".page-navigation li:last-child").flexShrink,
+				"1",
+			);
+			const title = computed(
+				'[aria-current="page"] .page-navigation__title',
+			);
+			assert.equal(title.whiteSpace, "nowrap");
+			assert.equal(title.overflow, "hidden");
+			assert.equal(title.textOverflow, "ellipsis");
+			assert.equal(
+				computed(".page-navigation__entry").alignItems,
+				"baseline",
+			);
+			const count = computed(".page-navigation .page-hit-count");
+			assert.equal(count.display, "inline-flex");
+			assert.equal(count.alignItems, "baseline");
+			assert.equal(
+				count.fontSize,
+				computed(".page-navigation__entry").fontSize,
+			);
+			assert.equal(
+				count.lineHeight,
+				computed(".page-navigation__entry").lineHeight,
+			);
+			assert.equal(computed(".page-hit-count output").display, "block");
+		} finally {
+			dom.window.close();
+		}
+	});
 	test("reserves breadcrumb count space for placeholders, values, and unavailable status", () => {
 		Object.assign(globalThis, { navigationPath: pages[2].path });
 		const dom = new JSDOM(

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, type CSSProperties } from "react";
 import { UNKNOWN_NETWORK_ADDRESS } from "@/domain/network-address-value";
 import { NetworkAddressView } from "./network-address-view";
 
@@ -8,10 +8,16 @@ type SiteVisitorResponse = {
 	networkAddress: string;
 };
 
+const maximumVisibleCharacters = 19;
+const gapCharacters = 2;
+const secondsPerCharacter = 1.44;
+
 export function SiteVisitorDetails() {
 	const [address, setAddress] = useState(UNKNOWN_NETWORK_ADDRESS);
 	const [isLoading, setIsLoading] = useState(true);
+	const [isPaused, setIsPaused] = useState(false);
 	const view = new NetworkAddressView(isLoading, address);
+	const streamText = view.isLoading ? view.glyphs.join("") : view.text;
 
 	useEffect(() => {
 		const abortController = new AbortController();
@@ -53,32 +59,56 @@ export function SiteVisitorDetails() {
 	}, []);
 
 	return (
-		<div className="visitor-privacy">
-			<p className="visitor-privacy__address">
-				<span>{view.label}</span>
-				<output aria-live="polite">
-					{view.isLoading ? (
-						<span
-							className="visitor-privacy__loading"
-							role="status"
-							aria-label={view.accessibleLabel}
-						>
-							{view.glyphs.map((glyph) => (
-								<span aria-hidden="true" key={glyph}>
-									{glyph}
-								</span>
-							))}
-						</span>
-					) : (
-						view.text
-					)}
-				</output>
-			</p>
-			<p className="visitor-privacy__note">
+		<aside className="network-address-stream" aria-label="Your connection">
+			<output className="visually-hidden" aria-live="polite">
+				{view.label}: {view.accessibleLabel}
+			</output>
+			<p className="visually-hidden">
 				Your network address is displayed here and is not stored. This
 				site records aggregate page views and service diagnostics
 				without visitor identifiers.
 			</p>
-		</div>
+			<button
+				className="network-address-stream__window"
+				type="button"
+				aria-label={
+					isPaused
+						? "Resume network address animation"
+						: "Pause network address animation"
+				}
+				aria-pressed={isPaused}
+				title={`${view.label}: ${view.accessibleLabel}. Your network address is not stored. Click to pause or resume.`}
+				style={
+					{
+						"--address-length": streamText.length,
+					} as CSSProperties
+				}
+				onClick={() => setIsPaused((current) => !current)}
+			>
+				<span
+					className="network-address-stream__track"
+					aria-hidden="true"
+					style={{
+						animationDuration: `${(streamText.length + maximumVisibleCharacters + gapCharacters) * secondsPerCharacter}s`,
+					}}
+				>
+					<span className="network-address-stream__address">
+						{[...streamText].map((character, index) => (
+							<span
+								className="network-address-stream__character"
+								key={index}
+								style={{
+									opacity:
+										0.2 +
+										(0.8 * (index + 1)) / streamText.length,
+								}}
+							>
+								{character}
+							</span>
+						))}
+					</span>
+				</span>
+			</button>
+		</aside>
 	);
 }

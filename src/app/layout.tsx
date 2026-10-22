@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { IBM_Plex_Mono } from "next/font/google";
 import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
+import { SiteVisitorDetails } from "@/components/site-visitor-details";
 import { PageNavigation } from "@/components/page-navigation";
 import { getPosts } from "./blog/posts";
 import "./globals.css";
@@ -62,6 +63,7 @@ export default async function RootLayout({
 					<PageNavigation pages={pages} />
 					{children}
 				</main>
+				<SiteVisitorDetails />
 				<SiteFooter />
 			</body>
 		</html>
