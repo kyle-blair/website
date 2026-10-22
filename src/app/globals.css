@@ -714,7 +714,6 @@ main:has(> .blog-article-page)::before {
 }
 
 .network-address-stream__track,
-.network-address-stream__address,
 .network-address-stream__character {
 	display: block;
 }
@@ -734,7 +733,12 @@ main:has(> .blog-article-page)::before {
 	text-shadow: 0 0 0.5rem currentColor;
 }
 
-.network-address-stream__character:last-child {
+.network-address-stream__address {
+	display: flex;
+	flex-direction: column-reverse;
+}
+
+.network-address-stream__character:first-child {
 	color: #d8ffe3;
 }
 
@@ -744,7 +748,6 @@ main:has(> .blog-article-page)::before {
 		[aria-pressed="true"]
 	)
 	.network-address-stream__track {
-	position: static;
 	animation-play-state: paused;
 }
 

@@ -140,9 +140,24 @@ test("streams the actual address in one decorative column, with a stable accessi
 			button.getAttribute("aria-label"),
 			"Resume network address animation",
 		);
+		assert.equal(dom.window.getComputedStyle(track).position, "absolute");
 		assert.equal(button.getAttribute("aria-pressed"), "true");
 		await act(() => button.click());
 		assert.equal(button.getAttribute("aria-pressed"), "false");
+		const column = track.querySelector(".network-address-stream__address")!;
+		assert.equal(dom.window.getComputedStyle(column).display, "flex");
+		assert.equal(
+			dom.window.getComputedStyle(column).flexDirection,
+			"column-reverse",
+		);
+		assert.equal(
+			(column.firstElementChild as HTMLElement).style.opacity,
+			"1",
+		);
+		assert.ok(
+			Number((column.lastElementChild as HTMLElement).style.opacity) <
+				0.3,
+		);
 		await act(() => root.unmount());
 		assert.equal(signal?.aborted, true);
 	} finally {

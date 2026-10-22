@@ -99,8 +99,7 @@ export function SiteVisitorDetails() {
 								key={index}
 								style={{
 									opacity:
-										0.2 +
-										(0.8 * (index + 1)) / streamText.length,
+										1 - (0.8 * index) / streamText.length,
 								}}
 							>
 								{character}
