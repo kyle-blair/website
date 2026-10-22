@@ -34,6 +34,53 @@ async function seed(pool: DatabasePool, key: string, value: unknown) {
 }
 
 suite("PostgreSQL persistent storage", () => {
+	test("adjusts counters atomically, deduplicates withdrawals, and prevents underflow", async (context) => {
+		const { store } = await fixture(context);
+		await store.increment("reactions", crypto.randomUUID());
+		const operationId = crypto.randomUUID();
+		for (const identifier of [operationId, operationId.toUpperCase()])
+			assert.equal(await store.increment("reactions", identifier, -1), 0);
+		await assert.rejects(
+			store.increment("reactions", operationId, 1),
+			StorageConflict,
+		);
+		await assert.rejects(
+			store.increment("reactions", crypto.randomUUID(), -1),
+			StorageConflict,
+		);
+		await assert.rejects(
+			store.increment("missing", crypto.randomUUID(), -1),
+			StorageConflict,
+		);
+		assert.deepEqual(await store.read("missing"), { found: false });
+		assert.deepEqual(await store.read("reactions"), {
+			found: true,
+			value: 0,
+		});
+		for (const amount of [0, 2, -2, 1.5, NaN])
+			await assert.rejects(
+				store.increment("reactions", crypto.randomUUID(), amount),
+				TypeError,
+			);
+	});
+	test("upgrades existing operation records with their original positive adjustment", async (context) => {
+		const { store, pool } = await fixture(context);
+		const operationId = crypto.randomUUID();
+		await store.increment("existing", operationId);
+		await pool.query(
+			"ALTER TABLE key_value.operations DROP COLUMN IF EXISTS amount",
+		);
+		const upgraded = new PostgresStorage(pool);
+		assert.equal(await upgraded.increment("existing", operationId), 1);
+		await assert.rejects(
+			upgraded.increment("existing", operationId, -1),
+			StorageConflict,
+		);
+		assert.equal(
+			await upgraded.increment("existing", crypto.randomUUID(), -1),
+			0,
+		);
+	});
 	test("reads existing data without changing its schema or contents", async (context) => {
 		const { store, pool } = await fixture(context);
 		assert.deepEqual(await store.read("missing"), { found: false });
@@ -155,6 +202,40 @@ suite("PostgreSQL persistent storage", () => {
 });
 
 suite("Authenticated storage service", () => {
+	test("accepts withdrawals on their own endpoint and rejects conflicting retries", async (context) => {
+		const { store } = await fixture(context);
+		await store.increment("likes:item", crypto.randomUUID());
+		const app = createApplication(store, "secret");
+		context.after(() => app.close());
+		const headers = { authorization: "Bearer secret" };
+		const operationId = crypto.randomUUID();
+		for (let attempt = 0; attempt < 2; attempt++) {
+			const response = await app.inject({
+				method: "POST",
+				url: "/v1/entries/likes%3Aitem/decrement",
+				headers,
+				payload: { operationId },
+			});
+			assert.equal(response.statusCode, 200);
+			assert.deepEqual(response.json(), { value: 0 });
+		}
+		for (const [operation, identifier] of [
+			["increment", operationId],
+			["decrement", crypto.randomUUID()],
+		]) {
+			const response = await app.inject({
+				method: "POST",
+				url: `/v1/entries/likes%3Aitem/${operation}`,
+				headers,
+				payload: { operationId: identifier },
+			});
+			assert.equal(response.statusCode, 409);
+		}
+		assert.deepEqual(await store.read("likes:item"), {
+			found: true,
+			value: 0,
+		});
+	});
 	test("accepts the documented key lengths and rejects larger keys", async (context) => {
 		const { store } = await fixture(context);
 		const app = createApplication(store, "secret");

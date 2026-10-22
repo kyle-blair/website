@@ -12,8 +12,8 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/*
 RUN printf 'unqualified-search-registries = ["docker.io"]\n' > /etc/containers/registries.conf
 RUN useradd --create-home --uid 1000 runner \
-    && printf 'runner:10000:5000\n' > /etc/subuid \
-    && printf 'runner:10000:5000\n' > /etc/subgid \
+    && printf 'runner:10000:50000\n' > /etc/subuid \
+    && printf 'runner:10000:50000\n' > /etc/subgid \
     && mkdir -p /home/runner/.config/containers /home/runner/.local/share/containers /home/runner/.run \
     && chown -R runner:runner /home/runner \
     && chmod 700 /home/runner/.run

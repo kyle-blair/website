@@ -53,7 +53,7 @@ printf '%s\\n' "$*" >> "$DEVELOPMENT_COMMAND_LOG"
 case "$*" in
     "compose version") exit "${"${PROVIDER_EXIT_STATUS:-0}"}" ;;
     "info") exit "${"${ENGINE_EXIT_STATUS:-0}"}" ;;
-    "compose up --detach --build telemetry")
+    "compose up --detach --build --force-recreate telemetry")
         printf 'telemetry startup attempted\\n'
         if [[ "${"${COLLECTOR_EXIT_STATUS:-0}"}" != 0 ]]; then
             printf 'collector configuration is invalid\\n' >&2
@@ -72,7 +72,7 @@ case "$*" in
             *) exit 2 ;;
         esac
         ;;
-    "compose up --detach --build --wait storage"|"compose up --detach --build storage"|"compose up --detach --build database storage")
+    "compose up --detach --build --force-recreate --wait storage"|"compose up --detach --build --force-recreate storage"|"compose up --detach --build --force-recreate database storage")
         if [[ "$*" == *"--wait"* && "${"${WAIT_FOR_SERVICES_NOT_BEING_STARTED:-false}"}" == true ]]; then
             printf 'Still waiting for website and telemetry containers that were not started\\n' >&2
             exit 124
@@ -390,13 +390,15 @@ exit "${"${WEBSITE_EXIT_STATUS:-0}"}"
 			assert.match(result.stdout, /website started/);
 			assert.match(result.stderr, /retaining.*database/i);
 			assert.equal(
-				commands.split("compose up --detach --build database storage")
-					.length - 1,
+				commands.split(
+					"compose up --detach --build --force-recreate database storage",
+				).length - 1,
 				1,
 			);
 			assert.equal(
-				commands.split("compose up --detach --build telemetry").length -
-					1,
+				commands.split(
+					"compose up --detach --build --force-recreate telemetry",
+				).length - 1,
 				1,
 			);
 		});

@@ -134,7 +134,7 @@ wait_for_service() {
 start_services() {
     local service failed=0
     printf 'Building and starting local services: %s.\n' "$*"
-    if ! compose up --detach --build "$@"; then
+    if ! compose up --detach --build --force-recreate "$@"; then
         report_service_failure "$@"
         return 1
     fi

@@ -69,6 +69,31 @@ suite("Storage service with PostgreSQL containers", { timeout: 30000 }, () => {
 		}
 	});
 
+	test("withdraws counts once across concurrent retries and rejects conflicting adjustments", async () => {
+		const key = `integration:${crypto.randomUUID()}`;
+		assert.equal((await increment(key, crypto.randomUUID())).status, 200);
+		const operationId = crypto.randomUUID();
+		const responses = await Promise.all(
+			Array.from({ length: 20 }, (_, index) =>
+				increment(
+					key,
+					index % 2 === 0 ? operationId : operationId.toUpperCase(),
+					-1,
+				),
+			),
+		);
+		for (const response of responses) {
+			assert.equal(response.status, 200);
+			assert.deepEqual(await response.json(), { value: 0 });
+		}
+		assert.equal((await increment(key, operationId, 1)).status, 409);
+		assert.equal(
+			(await increment(key, crypto.randomUUID(), -1)).status,
+			409,
+		);
+		assert.equal(await readCount(key), 0);
+	});
+
 	test("deduplicates mixed-case identifiers across concurrent database connections", async () => {
 		const key = `integration:${crypto.randomUUID()}`;
 		const operationId = `a${crypto.randomUUID().slice(1)}`;

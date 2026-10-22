@@ -41,14 +41,19 @@ export async function POST(request: Request) {
 				request,
 				"Invalid feedback",
 			);
-			const { subject, reaction } = action.data;
+			const { subject, reaction, selected = true } = action.data;
 			if (
 				!Feedback.isValidSubject(subject) ||
-				(reaction !== "like" && reaction !== "dislike")
+				(reaction !== "like" && reaction !== "dislike") ||
+				typeof selected !== "boolean"
 			)
 				return response({ error: "Invalid feedback" }, 400);
 			return response(
-				await feedback(subject).record(reaction, action.operationId),
+				await feedback(subject).record(
+					reaction,
+					action.operationId,
+					selected,
+				),
 				200,
 			);
 		} catch (error) {

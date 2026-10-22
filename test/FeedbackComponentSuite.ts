@@ -36,8 +36,12 @@ suite("Feedback component", () => {
 	async function mount(
 		context: { after: (callback: () => Promise<void>) => void },
 		fetcher: typeof fetch,
+		beforeRender = () => {},
 	) {
-		const dom = new JSDOM('<div id="root"></div>');
+		const dom = new JSDOM('<div id="root"></div>', {
+			url: "https://website.example",
+		});
+		const storage = dom.window.localStorage;
 		const stylesheet = dom.window.document.createElement("style");
 		stylesheet.textContent = readFileSync(
 			new URL("../src/app/globals.css", import.meta.url),
@@ -62,20 +66,30 @@ suite("Feedback component", () => {
 			dom.window.close();
 			Object.assign(globalThis, previous);
 		});
-		const render = (feedbackSubject = subject, withArticle = true) =>
+		const render = (
+			feedbackSubject: string | null = subject,
+			withArticle = true,
+		) =>
 			act(async () =>
 				root.render(
-					createElement(
-						Feedback,
-						{ subject: feedbackSubject },
-						withArticle
-							? createElement("article", {}, "Article body")
-							: undefined,
-					),
+					feedbackSubject === null
+						? null
+						: createElement(
+								Feedback,
+								{ subject: feedbackSubject },
+								withArticle
+									? createElement(
+											"article",
+											{},
+											"Article body",
+										)
+									: undefined,
+							),
 				),
 			);
+		beforeRender();
 		await render();
-		return { root, container, render };
+		return { root, container, render, storage };
 	}
 	function buttons(container: Element, reaction: string) {
 		return [
@@ -189,6 +203,68 @@ suite("Feedback component", () => {
 			assertCompactFeedback(container);
 		});
 	}
+	test("selects both reactions independently and withdraws either selection", async (context) => {
+		let likes = 2;
+		let dislikes = 1;
+		const submissions: {
+			reaction: string;
+			selected: boolean;
+			operationId: string;
+		}[] = [];
+		const { container } = await mount(context, async (_input, options) => {
+			if (options?.method === "POST") {
+				const vote = JSON.parse(String(options.body));
+				submissions.push(vote);
+				if (vote.reaction === "like") likes += vote.selected ? 1 : -1;
+				else dislikes += vote.selected ? 1 : -1;
+			}
+			return Response.json({ likes, dislikes });
+		});
+		for (const reaction of ["like", "dislike", "like", "dislike", "like"]) {
+			await act(async () => buttons(container, reaction)[0].click());
+			for (const kind of ["like", "dislike"])
+				assert.equal(
+					buttons(container, kind)[0].getAttribute("aria-pressed"),
+					buttons(container, kind)[1].getAttribute("aria-pressed"),
+				);
+		}
+		assert.deepEqual(
+			submissions.map(({ reaction, selected }) => [reaction, selected]),
+			[
+				["like", true],
+				["dislike", true],
+				["like", false],
+				["dislike", false],
+				["like", true],
+			],
+		);
+		assert.equal(
+			new Set(submissions.map(({ operationId }) => operationId)).size,
+			5,
+		);
+		assert.ok(
+			buttons(container, "like").every(
+				(button) =>
+					button.getAttribute("aria-pressed") === "true" &&
+					!button.disabled,
+			),
+		);
+		assert.ok(
+			buttons(container, "dislike").every(
+				(button) =>
+					button.getAttribute("aria-pressed") === "false" &&
+					!button.disabled,
+			),
+		);
+		assert.deepEqual(
+			[
+				...container.querySelectorAll(
+					'[aria-label="Net feedback score"]',
+				),
+			].map((output) => output.textContent),
+			["+2", "+2"],
+		);
+	});
 
 	test("renders accessible loading controls above and below the article before storage responds", () => {
 		const dom = new JSDOM(
@@ -211,6 +287,194 @@ suite("Feedback component", () => {
 		);
 		assert.equal(dom.window.document.querySelectorAll("article").length, 1);
 		assert.match(dom.window.document.body.textContent!, /Loading feedback/);
+	});
+	test("restores both selections after refresh and lets either be withdrawn without adding votes", async (context) => {
+		let likes = 0;
+		let dislikes = 0;
+		const submissions: { reaction: string; selected: boolean }[] = [];
+		const { container, render } = await mount(
+			context,
+			async (_input, options) => {
+				if (options?.method === "POST") {
+					const submission = JSON.parse(String(options.body));
+					submissions.push(submission);
+					const amount = submission.selected ? 1 : -1;
+					if (submission.reaction === "like") likes += amount;
+					else dislikes += amount;
+				}
+				return Response.json({ likes, dislikes });
+			},
+		);
+		await act(async () => buttons(container, "like")[0].click());
+		await act(async () => buttons(container, "dislike")[1].click());
+		await render(null);
+		await render();
+		assert.equal(submissions.length, 2);
+		for (const reaction of ["like", "dislike"])
+			assert.ok(
+				buttons(container, reaction).every(
+					(button) => button.getAttribute("aria-pressed") === "true",
+				),
+			);
+		await act(async () => buttons(container, "like")[1].click());
+		await render(null);
+		await render();
+		assert.equal(
+			buttons(container, "like")[0].getAttribute("aria-pressed"),
+			"false",
+		);
+		assert.equal(
+			buttons(container, "dislike")[0].getAttribute("aria-pressed"),
+			"true",
+		);
+		await act(async () => buttons(container, "dislike")[0].click());
+		await render(null);
+		await render();
+		assert.deepEqual([likes, dislikes], [0, 0]);
+		assert.deepEqual(
+			submissions.map(({ reaction, selected }) => [reaction, selected]),
+			[
+				["like", true],
+				["dislike", true],
+				["like", false],
+				["dislike", false],
+			],
+		);
+		assert.ok(
+			[
+				...buttons(container, "like"),
+				...buttons(container, "dislike"),
+			].every(
+				(button) => button.getAttribute("aria-pressed") === "false",
+			),
+		);
+	});
+
+	for (const withdrawing of [false, true]) {
+		test(`restores a pending ${withdrawing ? "withdrawal" : "selection"} across refresh and retries its original identifier`, async (context) => {
+			let likes = 0;
+			let loseReply = true;
+			const committed = new Set<string>();
+			const submissions: { operationId: string; selected: boolean }[] =
+				[];
+			const { container, render } = await mount(
+				context,
+				async (_input, options) => {
+					if (options?.method === "POST") {
+						const submission = JSON.parse(String(options.body));
+						submissions.push(submission);
+						if (!committed.has(submission.operationId)) {
+							likes += submission.selected ? 1 : -1;
+							committed.add(submission.operationId);
+						}
+						if (loseReply && submission.selected === !withdrawing) {
+							loseReply = false;
+							throw new Error("reply lost after commit");
+						}
+					}
+					return Response.json({ likes, dislikes: 0 });
+				},
+			);
+			await act(async () => buttons(container, "like")[0].click());
+			if (withdrawing)
+				await act(async () => buttons(container, "like")[0].click());
+			const pending = submissions.at(-1)!;
+			await render(null);
+			await render();
+			assert.equal(
+				buttons(container, "like")[0].getAttribute("aria-pressed"),
+				String(withdrawing),
+			);
+			await act(async () => buttons(container, "like")[1].click());
+			assert.equal(submissions.at(-1)!.operationId, pending.operationId);
+			assert.equal(likes, withdrawing ? 0 : 1);
+			assert.equal(
+				buttons(container, "like")[0].getAttribute("aria-pressed"),
+				String(!withdrawing),
+			);
+		});
+	}
+
+	test("keeps selections separate for different feedback subjects", async (context) => {
+		const { container, render } = await mount(context, async () =>
+			Response.json({ likes: 1, dislikes: 0 }),
+		);
+		await act(async () => buttons(container, "like")[0].click());
+		await render("item:example:second");
+		assert.equal(
+			buttons(container, "like")[0].getAttribute("aria-pressed"),
+			"false",
+		);
+		await render(subject);
+		assert.equal(
+			buttons(container, "like")[0].getAttribute("aria-pressed"),
+			"true",
+		);
+	});
+
+	test("does not submit a vote when browser storage is blocked", async (context) => {
+		let writes = 0;
+		const { container } = await mount(
+			context,
+			async (_input, options) => {
+				if (options?.method === "POST") writes++;
+				return Response.json({ likes: 2, dislikes: 0 });
+			},
+			() => {
+				Object.defineProperty(window, "localStorage", {
+					get() {
+						throw new Error("storage blocked");
+					},
+				});
+			},
+		);
+		await act(async () => buttons(container, "like")[0].click());
+		assert.equal(writes, 0);
+		assert.equal(
+			buttons(container, "like")[0].getAttribute("aria-pressed"),
+			"false",
+		);
+		assertCompactFeedback(container);
+	});
+
+	test("recovers a confirmation write failure after refresh without submitting a new operation", async (context) => {
+		const operations: string[] = [];
+		const { container, render } = await mount(
+			context,
+			async (_input, options) => {
+				if (options?.method === "POST")
+					operations.push(
+						JSON.parse(String(options.body)).operationId,
+					);
+				return Response.json({
+					likes: operations.length > 0 ? 1 : 0,
+					dislikes: 0,
+				});
+			},
+			() => {
+				const prototype = Object.getPrototypeOf(window.localStorage);
+				const setItem = prototype.setItem;
+				let writes = 0;
+				context.mock.method(
+					prototype,
+					"setItem",
+					function (this: Storage, key: string, value: string) {
+						if (++writes === 2) throw new Error("storage full");
+						setItem.call(this, key, value);
+					},
+				);
+			},
+		);
+		await act(async () => buttons(container, "like")[0].click());
+		await render(null);
+		await render();
+		await act(async () => buttons(container, "like")[1].click());
+		assert.equal(operations.length, 2);
+		assert.equal(operations[0], operations[1]);
+		assert.equal(
+			buttons(container, "like")[0].getAttribute("aria-pressed"),
+			"true",
+		);
 	});
 	for (const reaction of ["like", "dislike"]) {
 		test(`synchronizes both bars after a ${reaction} and prevents rapid duplicate votes`, async (context) => {
@@ -253,7 +517,7 @@ suite("Feedback component", () => {
 			assert.ok(!Object.hasOwn(submissions[0], "path"));
 			assert.equal(
 				container.querySelectorAll("button:disabled").length,
-				4,
+				0,
 			);
 			assert.ok(
 				buttons(container, reaction).every(
@@ -274,28 +538,165 @@ suite("Feedback component", () => {
 			);
 		});
 	}
-	test("retries an uncertain vote with the same identifier and locks out the other choice", async (context) => {
-		const submissions: Record<string, string>[] = [];
+	for (const reaction of ["like", "dislike"] as const) {
+		test(`retries an uncertain ${reaction} with the same identifier without blocking the other choice`, async (context) => {
+			const submissions: Record<string, string>[] = [];
+			const { container } = await mount(
+				context,
+				async (_input, options) => {
+					if (options?.method === "POST") {
+						submissions.push(JSON.parse(String(options.body)));
+						if (submissions.length === 1)
+							throw new Error("lost reply after commit");
+						return Response.json({
+							likes: reaction === "like" ? 1 : 0,
+							dislikes: reaction === "dislike" ? 1 : 0,
+						});
+					}
+					return Response.json({ likes: 0, dislikes: 0 });
+				},
+			);
+			await act(async () => buttons(container, reaction)[0].click());
+			assert.match(container.textContent!, /Feedback unavailable/);
+			assert.ok(
+				buttons(
+					container,
+					reaction === "like" ? "dislike" : "like",
+				).every((button) => !button.disabled),
+			);
+			assert.ok(
+				buttons(container, reaction).every(
+					(button) => !button.disabled,
+				),
+			);
+			assertCompactFeedback(container);
+			await act(async () => buttons(container, reaction)[1].click());
+			assert.equal(submissions.length, 2);
+			assert.equal(
+				submissions[0].operationId,
+				submissions[1].operationId,
+			);
+		});
+	}
+	test("keeps a selection until its withdrawal is confirmed and retries the same withdrawal", async (context) => {
+		const submissions: { selected: boolean; operationId: string }[] = [];
 		const { container } = await mount(context, async (_input, options) => {
-			if (options?.method === "POST") {
-				submissions.push(JSON.parse(String(options.body)));
-				if (submissions.length === 1)
-					throw new Error("lost reply after commit");
-				return Response.json({ likes: 1, dislikes: 0 });
-			}
-			return Response.json({ likes: 0, dislikes: 0 });
+			if (options?.method !== "POST")
+				return Response.json({ likes: 0, dislikes: 0 });
+			const submission = JSON.parse(String(options.body));
+			submissions.push(submission);
+			if (submissions.length === 2)
+				throw new Error("lost withdrawal reply");
+			return Response.json({
+				likes: submission.selected ? 1 : 0,
+				dislikes: 0,
+			});
 		});
 		await act(async () => buttons(container, "like")[0].click());
-		assert.match(container.textContent!, /could not be confirmed/);
-		assert.ok(
-			buttons(container, "dislike").every((button) => button.disabled),
-		);
-		assert.ok(
-			buttons(container, "like").every((button) => !button.disabled),
-		);
 		await act(async () => buttons(container, "like")[1].click());
-		assert.equal(submissions.length, 2);
-		assert.equal(submissions[0].operationId, submissions[1].operationId);
+		assert.ok(
+			buttons(container, "like").every(
+				(button) => button.getAttribute("aria-pressed") === "true",
+			),
+		);
+		assert.equal(
+			container.querySelector('[aria-label="Net feedback score"]')!
+				.textContent,
+			"+1",
+		);
+		await act(async () => buttons(container, "like")[0].click());
+		assert.deepEqual(
+			submissions.map(({ selected }) => selected),
+			[true, false, false],
+		);
+		assert.equal(submissions[1].operationId, submissions[2].operationId);
+		assert.notEqual(submissions[0].operationId, submissions[1].operationId);
+		assert.ok(
+			buttons(container, "like").every(
+				(button) => button.getAttribute("aria-pressed") === "false",
+			),
+		);
+		assert.equal(
+			container.querySelector('[aria-label="Net feedback score"]')!
+				.textContent,
+			"0",
+		);
+	});
+	test("keeps both reactions reversible after a withdrawal failure and a twenty-second pause", async (context) => {
+		let now = Date.now();
+		context.mock.method(Date, "now", () => now);
+		let likes = 0;
+		let dislikes = 0;
+		let unavailable = true;
+		const committed = new Set<string>();
+		const submissions: {
+			reaction: string;
+			selected: boolean;
+			operationId: string;
+		}[] = [];
+		const { container } = await mount(context, async (_input, options) => {
+			if (options?.method === "POST") {
+				const submission = JSON.parse(String(options.body));
+				submissions.push(submission);
+				if (
+					!submission.selected &&
+					submission.reaction === "like" &&
+					unavailable
+				)
+					return new Response(null, { status: 503 });
+				if (!committed.has(submission.operationId)) {
+					const amount = submission.selected ? 1 : -1;
+					if (submission.reaction === "like") likes += amount;
+					else dislikes += amount;
+					committed.add(submission.operationId);
+				}
+			}
+			return Response.json({ likes, dislikes });
+		});
+		await act(async () => buttons(container, "like")[0].click());
+		await act(async () => buttons(container, "dislike")[1].click());
+		now += 20000;
+		await act(async () => buttons(container, "like")[1].click());
+		assert.equal(likes, 1);
+		assertCompactFeedback(container);
+		assert.match(container.textContent!, /Feedback unavailable/);
+		assert.equal(container.querySelectorAll("button:disabled").length, 0);
+		assert.equal(container.querySelector("button[title]"), null);
+		await act(async () => buttons(container, "dislike")[0].click());
+		assert.equal(dislikes, 0);
+		assert.equal(
+			container.querySelector('[role="status"]')!.textContent,
+			"",
+		);
+		assert.equal(
+			buttons(container, "dislike")[0].getAttribute("aria-pressed"),
+			"false",
+		);
+		assert.equal(
+			buttons(container, "like")[0].getAttribute("aria-pressed"),
+			"true",
+		);
+		unavailable = false;
+		await act(async () => buttons(container, "like")[0].click());
+		assert.equal(submissions[2].operationId, submissions[4].operationId);
+		assert.deepEqual([likes, dislikes], [0, 0]);
+		assert.ok(
+			[
+				...buttons(container, "like"),
+				...buttons(container, "dislike"),
+			].every(
+				(button) =>
+					button.getAttribute("aria-pressed") === "false" &&
+					!button.disabled,
+			),
+		);
+		assert.equal(
+			container.querySelector('[role="status"]')!.textContent,
+			"",
+		);
+		for (const reaction of ["like", "like", "dislike", "dislike"])
+			await act(async () => buttons(container, reaction)[0].click());
+		assert.deepEqual([likes, dislikes], [0, 0]);
 	});
 	for (const [name, reply] of [
 		[
@@ -355,7 +756,7 @@ suite("Feedback component", () => {
 						: Response.json({ likes: 4, dislikes: 1 }),
 			);
 			await act(async () => buttons(container, "like")[0].click());
-			assert.match(container.textContent!, /could not be confirmed/);
+			assert.match(container.textContent!, /Feedback unavailable/);
 			assertCompactFeedback(container);
 			assert.equal(
 				container.querySelector('[aria-label="Net feedback score"]')!
@@ -375,7 +776,7 @@ suite("Feedback component", () => {
 		});
 		await act(async () => buttons(container, "like")[0].click());
 		assert.equal(writes, 0);
-		assert.match(container.textContent!, /could not be confirmed/);
+		assert.match(container.textContent!, /Feedback unavailable/);
 	});
 	test("aborts obsolete requests when the subject changes and supports a standalone bar", async (context) => {
 		let signal!: AbortSignal;

@@ -3,13 +3,17 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { ThumbsUp, ThumbsDown } from "lucide-react";
 import { FeedbackTotals, type Reaction } from "../domain/feedback.ts";
+import {
+	readFeedbackSelections,
+	saveFeedbackSelections,
+	type FeedbackVote,
+} from "../infrastructure/browser-feedback.ts";
 
 type Props = { subject: string; children?: ReactNode };
 type FeedbackState =
 	| { status: "loading" }
 	| { status: "ready"; totals: FeedbackTotals }
 	| { status: "unavailable" };
-type Vote = { reaction: Reaction; operationId: string };
 
 export function Feedback({ subject, children }: Props) {
 	return (
@@ -22,8 +26,10 @@ export function Feedback({ subject, children }: Props) {
 function FeedbackContent({ subject, children }: Props) {
 	const [state, setState] = useState<FeedbackState>({ status: "loading" });
 	const [attempt, setAttempt] = useState(0);
-	const [choice, setChoice] = useState<Reaction>();
-	const [operation, setOperation] = useState<Vote>();
+	const [choices, setChoices] = useState({ like: false, dislike: false });
+	const [operations, setOperations] = useState<
+		Partial<Record<Reaction, FeedbackVote>>
+	>({});
 	const [submitting, setSubmitting] = useState(false);
 	const [message, setMessage] = useState("");
 	const busy = useRef(false);
@@ -46,8 +52,12 @@ function FeedbackContent({ subject, children }: Props) {
 				);
 				if (!response.ok) throw new Error("Feedback unavailable");
 				const totals = FeedbackTotals.from(await response.json());
-				if (!controller.signal.aborted)
+				if (!controller.signal.aborted) {
+					const saved = readFeedbackSelections(subject);
+					setChoices(saved.choices);
+					setOperations(saved.operations);
 					setState({ status: "ready", totals });
+				}
 			} catch {
 				if (!controller.signal.aborted)
 					setState({ status: "unavailable" });
@@ -64,11 +74,16 @@ function FeedbackContent({ subject, children }: Props) {
 		setMessage("");
 		const controller = requestController.current!;
 		try {
-			const next = operation ?? {
+			const next = operations[reaction] ?? {
 				reaction,
+				selected: !choices[reaction],
 				operationId: crypto.randomUUID(),
 			};
-			setOperation(next);
+			saveFeedbackSelections(subject, {
+				choices,
+				operations: { ...operations, [reaction]: next },
+			});
+			setOperations((current) => ({ ...current, [reaction]: next }));
 			const response = await fetch("/api/feedback", {
 				method: "POST",
 				headers: { "content-type": "application/json" },
@@ -82,14 +97,21 @@ function FeedbackContent({ subject, children }: Props) {
 			if (!response.ok) throw new Error("Feedback unavailable");
 			const totals = FeedbackTotals.from(await response.json());
 			if (!controller.signal.aborted) {
+				const nextChoices = {
+					...choices,
+					[next.reaction]: next.selected,
+				};
+				const nextOperations = { ...operations, [reaction]: undefined };
+				saveFeedbackSelections(subject, {
+					choices: nextChoices,
+					operations: nextOperations,
+				});
 				setState({ status: "ready", totals });
-				setChoice(reaction);
+				setChoices(nextChoices);
+				setOperations(nextOperations);
 			}
 		} catch {
-			if (!controller.signal.aborted)
-				setMessage(
-					"Your vote could not be confirmed. Select the same button to retry.",
-				);
+			if (!controller.signal.aborted) setMessage("Feedback unavailable.");
 		} finally {
 			if (!controller.signal.aborted) {
 				busy.current = false;
@@ -113,15 +135,8 @@ function FeedbackContent({ subject, children }: Props) {
 						type="button"
 						data-reaction={reaction}
 						aria-label={reaction === "like" ? "Like" : "Dislike"}
-						title={message || undefined}
-						aria-pressed={choice === reaction}
-						disabled={
-							state.status !== "ready" ||
-							submitting ||
-							choice !== undefined ||
-							(operation !== undefined &&
-								operation.reaction !== reaction)
-						}
+						aria-pressed={choices[reaction]}
+						disabled={state.status !== "ready" || submitting}
 						onClick={() => void vote(reaction)}
 					>
 						{reaction === "like" ? (
@@ -171,9 +186,7 @@ function FeedbackContent({ subject, children }: Props) {
 					? "Loading feedback…"
 					: state.status === "unavailable"
 						? "Feedback unavailable."
-						: submitting
-							? "Sending feedback…"
-							: message}
+						: message || (submitting ? "Sending feedback…" : "")}
 			</p>
 		</section>
 	);

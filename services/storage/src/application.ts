@@ -59,32 +59,41 @@ export function createApplication(store: PersistentStorage, token: string) {
 			{ schema: { params } },
 			async (request) => store.read(request.params.key),
 		);
-		routes.post<{ Params: { key: string }; Body: { operationId: string } }>(
-			"/v1/entries/:key/increment",
-			{
-				schema: {
-					params,
-					body: {
-						type: "object",
-						required: ["operationId"],
-						additionalProperties: false,
-						properties: {
-							operationId: {
-								type: "string",
-								pattern:
-									"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89aAbB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$",
+		for (const [operation, amount] of [
+			["increment", 1],
+			["decrement", -1],
+		] as const) {
+			routes.post<{
+				Params: { key: string };
+				Body: { operationId: string };
+			}>(
+				`/v1/entries/:key/${operation}`,
+				{
+					schema: {
+						params,
+						body: {
+							type: "object",
+							required: ["operationId"],
+							additionalProperties: false,
+							properties: {
+								operationId: {
+									type: "string",
+									pattern:
+										"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89aAbB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$",
+								},
 							},
 						},
 					},
 				},
-			},
-			async (request) => ({
-				value: await store.increment(
-					request.params.key,
-					request.body.operationId,
-				),
-			}),
-		);
+				async (request) => ({
+					value: await store.increment(
+						request.params.key,
+						request.body.operationId,
+						amount,
+					),
+				}),
+			);
+		}
 	});
 	return app;
 }

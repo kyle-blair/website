@@ -143,7 +143,12 @@ suite("Page navigation", () => {
 		assert.equal(document.querySelectorAll("output").length, 1);
 	});
 	test("counts and displays only the current page, and resets on navigation while containing outages", async (context) => {
-		const dom = new JSDOM('<div id="root"></div>');
+		const dom = new JSDOM('<div id="root"></div>', {
+			url: "https://website.example",
+		});
+		Object.defineProperty(dom.window.navigator, "locks", {
+			value: globalThis.navigator.locks,
+		});
 		const previous = {
 			window: globalThis.window,
 			document: globalThis.document,
@@ -186,7 +191,7 @@ suite("Page navigation", () => {
 		);
 		assert.equal(
 			requests.filter((request) => request.method === "POST").length,
-			2,
+			1,
 		);
 		assert.equal(
 			new Set(

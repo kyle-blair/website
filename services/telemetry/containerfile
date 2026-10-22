@@ -1,11 +1,4 @@
-FROM otel/opentelemetry-collector-contrib:0.162.0 AS collector
-
-FROM alpine:3.24
-RUN apk add --no-cache su-exec
-COPY --from=collector /otelcol-contrib /otelcol-contrib
-COPY --from=collector /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt
+FROM otel/opentelemetry-collector-contrib:0.162.0
 COPY collector.yaml /etc/otelcol-contrib/config.yaml
-COPY --chmod=755 start.sh /usr/local/bin/start-collector
 EXPOSE 4318 13133
-ENTRYPOINT ["/usr/local/bin/start-collector"]
 CMD ["--config=/etc/otelcol-contrib/config.yaml"]

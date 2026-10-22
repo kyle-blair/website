@@ -10,5 +10,9 @@ export type StoredEntry =
 
 export interface PersistentStorage {
 	read(key: string): Promise<StoredEntry>;
-	increment(key: string, operationId: string): Promise<number>;
+	increment(
+		key: string,
+		operationId: string,
+		amount?: number,
+	): Promise<number>;
 }

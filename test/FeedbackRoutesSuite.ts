@@ -31,8 +31,13 @@ suite("Feedback routes", () => {
 			);
 			if (request.method === "POST") {
 				const { operationId } = await request.json();
+				const amount = new URL(request.url).pathname.endsWith(
+					"/decrement",
+				)
+					? -1
+					: 1;
 				if (!operations.has(operationId)) {
-					counts.set(key, (counts.get(key) ?? 0) + 1);
+					counts.set(key, (counts.get(key) ?? 0) + amount);
 					operations.add(operationId);
 				}
 				return Response.json({ value: counts.get(key) });
@@ -89,6 +94,22 @@ suite("Feedback routes", () => {
 			).json(),
 			{ likes: 1, dislikes: 1 },
 		);
+		for (const reaction of ["like", "dislike"]) {
+			const withdrawal = {
+				subject,
+				reaction,
+				selected: false,
+				operationId: crypto.randomUUID(),
+			};
+			for (let attempt = 0; attempt < 2; attempt++) {
+				const response = await post(withdrawal);
+				assert.equal(response.status, 200);
+				assert.deepEqual(await response.json(), {
+					likes: 0,
+					dislikes: reaction === "like" ? 1 : 0,
+				});
+			}
+		}
 		for (const item of [
 			"item:example:second",
 			"/unpublished#item",
@@ -118,6 +139,8 @@ suite("Feedback routes", () => {
 			{ path: "/blog/example", reaction: "like", operationId },
 			{ subject: 1, reaction: "like", operationId },
 			{ subject: "item:\n", reaction: "like", operationId },
+			{ subject, reaction: "like", selected: null, operationId },
+			{ subject, reaction: "like", selected: "false", operationId },
 		])
 			assert.equal((await post(invalid)).status, 400);
 		for (const invalid of [

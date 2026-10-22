@@ -251,6 +251,37 @@ suite("Website, storage, and PostgreSQL containers", { timeout: 30000 }, () => {
 			assert.equal(rejected.status, 403);
 			assert.equal(await readCount(`likes:${subject}`), likes + 1);
 			assert.equal(await readCount(`dislikes:${subject}`), dislikes + 1);
+			for (const reaction of ["like", "dislike"]) {
+				const withdrawalId = crypto.randomUUID();
+				for (const identifier of [
+					withdrawalId,
+					withdrawalId.toUpperCase(),
+				]) {
+					const withdrawal = await fetch(
+						new URL("/api/feedback", origin),
+						{
+							method: "POST",
+							headers: {
+								"content-type": "application/json",
+								"sec-fetch-site": "same-origin",
+							},
+							body: JSON.stringify({
+								subject,
+								reaction,
+								selected: false,
+								operationId: identifier,
+							}),
+						},
+					);
+					assert.equal(withdrawal.status, 200);
+					assert.deepEqual(await withdrawal.json(), {
+						likes,
+						dislikes: dislikes + (reaction === "like" ? 1 : 0),
+					});
+				}
+			}
+			assert.equal(await readCount(`likes:${subject}`), likes);
+			assert.equal(await readCount(`dislikes:${subject}`), dislikes);
 		});
 	}
 });

@@ -45,12 +45,18 @@ export class HttpsStorage implements PersistentStorage {
 		return entry;
 	}
 
-	public async increment(key: string, operationId: string): Promise<number> {
+	public async increment(
+		key: string,
+		operationId: string,
+		amount = 1,
+	): Promise<number> {
+		if (amount !== 1 && amount !== -1)
+			throw new TypeError("Counter adjustments must be 1 or -1.");
 		const response = await this.request(
 			key,
 			"POST",
 			{ operationId },
-			"/increment",
+			amount === 1 ? "/increment" : "/decrement",
 		);
 		const result = await response.json();
 		if (!Number.isSafeInteger(result?.value) || result.value < 0)

@@ -20,7 +20,11 @@ export interface DatabasePool {
 }
 export interface PersistentStorage {
 	read(key: string): Promise<StoredEntry>;
-	increment(key: string, operationId: string): Promise<number>;
+	increment(
+		key: string,
+		operationId: string,
+		amount?: number,
+	): Promise<number>;
 	check(): Promise<void>;
 }
 
@@ -43,6 +47,9 @@ export class PostgresStorage implements PersistentStorage {
 			);
 			await connection.query(
 				"CREATE TABLE IF NOT EXISTS key_value.operations (operation_id uuid PRIMARY KEY, key text NOT NULL, value jsonb NOT NULL, expires_at timestamptz NOT NULL DEFAULT (now() + interval '15 minutes'))",
+			);
+			await connection.query(
+				"ALTER TABLE key_value.operations ADD COLUMN IF NOT EXISTS amount integer NOT NULL DEFAULT 1 CHECK (amount IN (-1, 1))",
 			);
 			await connection.query(
 				"CREATE INDEX IF NOT EXISTS operations_expiration ON key_value.operations (expires_at)",
@@ -68,7 +75,10 @@ export class PostgresStorage implements PersistentStorage {
 	public async increment(
 		key: string,
 		submittedOperationId: string,
+		amount = 1,
 	): Promise<number> {
+		if (amount !== 1 && amount !== -1)
+			throw new TypeError("Counter adjustments must be 1 or -1.");
 		await this.initialize();
 		const operationId = submittedOperationId.toLowerCase();
 		return this.transaction(async (connection) => {
@@ -81,37 +91,44 @@ export class PostgresStorage implements PersistentStorage {
 				[operationId],
 			);
 			const previous = await connection.query(
-				"SELECT key, value FROM key_value.operations WHERE operation_id = $1",
+				"SELECT key, value, amount FROM key_value.operations WHERE operation_id = $1",
 				[operationId],
 			);
 			if (previous.rows.length > 0) {
-				if (previous.rows[0].key !== key) {
+				if (
+					previous.rows[0].key !== key ||
+					previous.rows[0].amount !== amount
+				) {
 					throw new StorageConflict(
-						"Operation identifier already used for another key.",
+						"Operation identifier already used for another adjustment.",
 					);
 				}
 				return previous.rows[0].value as number;
 			}
 			const result = await connection.query(
 				`
-				INSERT INTO key_value.entries AS entry (key, value) VALUES ($1, '1'::jsonb)
-				ON CONFLICT (key) DO UPDATE SET value = to_jsonb((entry.value #>> '{}')::numeric + 1)
+				INSERT INTO key_value.entries AS entry (key, value) VALUES ($1, to_jsonb($2::numeric))
+				ON CONFLICT (key) DO UPDATE SET value = to_jsonb((entry.value #>> '{}')::numeric + $2::numeric)
 				WHERE CASE WHEN jsonb_typeof(entry.value) = 'number' THEN
-					(entry.value #>> '{}')::numeric BETWEEN 0 AND 9007199254740990
+					(entry.value #>> '{}')::numeric BETWEEN 0 AND 9007199254740991
+					AND (entry.value #>> '{}')::numeric + $2::numeric BETWEEN 0 AND 9007199254740991
 					AND trunc((entry.value #>> '{}')::numeric) = (entry.value #>> '{}')::numeric
 				ELSE false END
 				RETURNING value`,
-				[key],
+				[key, amount],
 			);
-			if (result.rows.length === 0) {
+			if (
+				result.rows.length === 0 ||
+				(result.rows[0].value as number) < 0
+			) {
 				throw new StorageConflict(
-					"Counter requires a nonnegative safe integer below its maximum.",
+					"Counter adjustment requires a nonnegative safe integer result.",
 				);
 			}
 			const value = result.rows[0].value as number;
 			await connection.query(
-				"INSERT INTO key_value.operations (operation_id, key, value) VALUES ($1, $2, $3::jsonb)",
-				[operationId, key, JSON.stringify(value)],
+				"INSERT INTO key_value.operations (operation_id, key, value, amount) VALUES ($1, $2, $3::jsonb, $4)",
+				[operationId, key, JSON.stringify(value), amount],
 			);
 			return value;
 		});

@@ -6,6 +6,46 @@ import { HttpsStorage } from "../src/infrastructure/https-storage.ts";
 import { PageHitsEndpoint } from "../src/app/api/page-hits/page-hits-endpoint.ts";
 
 suite("HTTPS persistent storage", () => {
+	test("sends negative counter adjustments for withdrawn reactions", async () => {
+		const operationId = crypto.randomUUID();
+		const store = new HttpsStorage(
+			"https://storage.example",
+			"secret",
+			async (input, options) => {
+				assert.equal(
+					String(input),
+					"https://storage.example/v1/entries/likes%3Aitem/decrement",
+				);
+				assert.deepEqual(JSON.parse(String(options?.body)), {
+					operationId,
+				});
+				return Response.json({ value: 0 });
+			},
+		);
+		assert.equal(await store.increment("likes:item", operationId, -1), 0);
+	});
+	test("does not fall back to incrementing when an older service cannot withdraw counts", async () => {
+		const paths: string[] = [];
+		const store = new HttpsStorage(
+			"https://storage.example",
+			"secret",
+			async (input) => {
+				paths.push(new URL(input as URL).pathname);
+				return new Response(null, { status: 404 });
+			},
+		);
+		await assert.rejects(
+			store.increment("likes:item", crypto.randomUUID(), -1),
+			/Storage service unavailable/,
+		);
+		assert.deepEqual(paths, ["/v1/entries/likes%3Aitem/decrement"]);
+		for (const amount of [0, 2, -2, 0.5, NaN])
+			await assert.rejects(
+				store.increment("likes:item", crypto.randomUUID(), amount),
+				TypeError,
+			);
+		assert.equal(paths.length, 1);
+	});
 	test("uses authenticated, uncached requests without visitor headers", async () => {
 		const requests: Request[] = [];
 		const store = new HttpsStorage(

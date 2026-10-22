@@ -16,12 +16,15 @@ export function storageRequest(path: string, options: RequestInit = {}) {
 	});
 }
 
-export function increment(key: string, operationId: string) {
-	return storageRequest(`/v1/entries/${encodeURIComponent(key)}/increment`, {
-		method: "POST",
-		headers: { "content-type": "application/json" },
-		body: JSON.stringify({ operationId }),
-	});
+export function increment(key: string, operationId: string, amount = 1) {
+	return storageRequest(
+		`/v1/entries/${encodeURIComponent(key)}/${amount === 1 ? "increment" : "decrement"}`,
+		{
+			method: "POST",
+			headers: { "content-type": "application/json" },
+			body: JSON.stringify({ operationId }),
+		},
+	);
 }
 
 export async function readCount(key: string): Promise<number> {

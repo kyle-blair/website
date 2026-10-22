@@ -23,11 +23,19 @@ verify_saved_telemetry() {
     exit 1
 }
 
-podman exec "$collector_identifier" sh -c 'grep -Eq "^Uid:[[:space:]]+1000[[:space:]]" /proc/1/status'
 podman exec --interactive "$storage_identifier" node --input-type=module - before-restart < integration/telemetry-persistence.mjs
 verify_saved_telemetry persistence.before-restart
 
 docker-compose stop telemetry
+volume_name=$(podman inspect --format '{{range .Mounts}}{{if eq .Destination "/var/data"}}{{.Name}}{{end}}{{end}}' "$collector_identifier")
+volume_path=$(podman volume inspect --format '{{.Mountpoint}}' "$volume_name")
+podman unshare chown --recursive 1000:1000 "$volume_path"
+podman unshare chmod 0750 "$volume_path"
+for signal in traces metrics logs; do
+    podman unshare chmod 0640 "$volume_path/$signal.json"
+done
+podman build --file services/telemetry/migrate-ownership.containerfile --tag localhost/telemetry-ownership-migration services/telemetry
+podman run --rm --volume "$volume_name:/var/data" localhost/telemetry-ownership-migration
 docker-compose rm --force telemetry
 docker-compose create telemetry
 collector_identifier=$(docker-compose ps --all --quiet telemetry)
@@ -49,4 +57,4 @@ fi
 podman exec --interactive "$storage_identifier" node --input-type=module - after-restart < integration/telemetry-persistence.mjs
 verify_saved_telemetry persistence.after-restart
 verify_saved_telemetry persistence.before-restart
-printf 'Traces, metrics, and logs survive collector replacement and accept new records.\n'
+printf 'Traces, metrics, and logs with existing ownership survive collector replacement and accept new records.\n'

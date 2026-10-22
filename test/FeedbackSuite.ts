@@ -7,6 +7,35 @@ import type {
 } from "../src/domain/persistent-storage.ts";
 
 suite("Feedback", () => {
+	test("withdraws reactions independently through signed counter adjustments", async () => {
+		const values = new Map<string, number>();
+		const adjustments: number[] = [];
+		const feedback = new Feedback("item:toggle", {
+			read: async (key) => ({ found: true, value: values.get(key) ?? 0 }),
+			increment: async (key, _operationId, amount = 1) => {
+				adjustments.push(amount);
+				const value = (values.get(key) ?? 0) + amount;
+				values.set(key, value);
+				return value;
+			},
+		});
+		await feedback.record("like", crypto.randomUUID());
+		await feedback.record("dislike", crypto.randomUUID());
+		assert.deepEqual(await feedback.read(), new FeedbackTotals(1, 1));
+		await feedback.record("like", crypto.randomUUID(), false);
+		assert.deepEqual(await feedback.read(), new FeedbackTotals(0, 1));
+		await feedback.record("dislike", crypto.randomUUID(), false);
+		assert.deepEqual(await feedback.read(), new FeedbackTotals(0, 0));
+		assert.deepEqual(adjustments, [1, 1, -1, -1]);
+		await assert.rejects(
+			feedback.record(
+				"like",
+				crypto.randomUUID(),
+				"no" as unknown as boolean,
+			),
+			TypeError,
+		);
+	});
 	test("derives signed net scores from nonnegative whole counts", () => {
 		for (const [likes, dislikes, score, text] of [
 			[12, 2, 10, "+10"],

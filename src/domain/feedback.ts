@@ -72,12 +72,17 @@ export class Feedback {
 	public async record(
 		reaction: Reaction,
 		operationId: string,
+		selected = true,
 	): Promise<FeedbackTotals> {
-		if (reaction !== "like" && reaction !== "dislike")
+		if (
+			(reaction !== "like" && reaction !== "dislike") ||
+			typeof selected !== "boolean"
+		)
 			throw new TypeError("Invalid feedback reaction.");
 		await this.storage.increment(
 			`${reaction === "like" ? "likes" : "dislikes"}:${this.subject}`,
 			operationId,
+			selected ? 1 : -1,
 		);
 		return this.read();
 	}
