@@ -1,31 +1,10 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
-import { registerHooks } from "node:module";
 import { suite, test } from "node:test";
 import { createElement, act, StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { renderToString } from "react-dom/server";
 import { JSDOM } from "jsdom";
-import ts from "typescript";
 
-registerHooks({
-	load(url, context, nextLoad) {
-		if (url.endsWith("/page-hit-count.tsx")) {
-			return {
-				format: "module",
-				shortCircuit: true,
-				source: ts.transpileModule(readFileSync(new URL(url), "utf8"), {
-					compilerOptions: {
-						jsx: ts.JsxEmit.ReactJSX,
-						module: ts.ModuleKind.ESNext,
-						target: ts.ScriptTarget.ES2022,
-					},
-				}).outputText,
-			};
-		}
-		return nextLoad(url, context);
-	},
-});
 const { PageHitCount } = await import("../src/components/page-hit-count.tsx");
 
 suite("Page hit count", () => {

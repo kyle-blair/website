@@ -1,5 +1,5 @@
 import { parentPort } from "node:worker_threads";
-import { PageHitsEndpoint } from "../src/app/api/page-hits/page-hits-endpoint.ts";
+import { PageHitsEndpoint } from "../../src/app/api/page-hits/page-hits-endpoint.ts";
 
 const endpoint = new PageHitsEndpoint(
 	async () => {

@@ -1,0 +1,15 @@
+.git
+**/node_modules
+**/.next
+**/out
+**/build
+**/coverage
+**/.env*
+**/*.pem
+**/*.key
+**/*.tsbuildinfo
+**/*debug.log*
+**/.DS_Store
+.agents
+.codex
+.aws

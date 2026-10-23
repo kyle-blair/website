@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { ArrowLeft } from "lucide-react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { formatPostDate, getPost, getPosts } from "../posts";
+import { getPost, getPosts } from "../posts";
 import { Feedback } from "@/components/feedback";
 
 type Props = { params: Promise<{ slug: string }> };
@@ -43,7 +43,7 @@ export default async function BlogPostPage({ params }: Props) {
 								className="blog-post-date"
 								dateTime={post.date}
 							>
-								{formatPostDate(post.date)}
+								{post.date}
 							</time>
 						)}
 					</header>

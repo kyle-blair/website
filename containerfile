@@ -13,6 +13,9 @@ COPY shared ./shared
 RUN npm run build
 
 FROM node:24.19.0-bookworm-slim AS runner
+RUN apt-get update \
+    && apt-get install --yes --no-install-recommends curl \
+    && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 
 ENV NODE_ENV=production \

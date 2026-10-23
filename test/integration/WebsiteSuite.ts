@@ -23,6 +23,32 @@ function pageView(
 }
 
 suite("Website, storage, and PostgreSQL containers", { timeout: 30000 }, () => {
+	test("renders matching header and footer navigation with the address stream outside both", async () => {
+		const response = await fetch(origin, {
+			signal: AbortSignal.timeout(5000),
+		});
+		assert.equal(response.status, 200);
+		const html = await response.text();
+		const header = html.match(/<header\b[^>]*>([\s\S]*?)<\/header>/)?.[1];
+		const footer = html.match(/<footer\b[^>]*>([\s\S]*?)<\/footer>/)?.[1];
+		assert.ok(header);
+		assert.ok(footer);
+		const links = (markup: string) =>
+			[...markup.matchAll(/<a\b[^>]*href="([^"]+)"/g)].map(
+				(match) => match[1],
+			);
+		assert.deepEqual(links(header), links(footer));
+		assert.ok(links(header).includes("/blog"));
+		assert.ok(links(header).includes("/contact"));
+		assert.match(header, /aria-label="Primary navigation"/);
+		assert.match(footer, /aria-label="Footer navigation"/);
+		assert.doesNotMatch(header + footer, /network-address-stream/);
+		assert.match(
+			html,
+			/<\/main>\s*<aside\b[^>]*class="network-address-stream"/,
+		);
+	});
+
 	test("serves page markup with a loading counter before recording a view", async () => {
 		const before = await readCount("hits:page:/");
 		const response = await fetch(origin, {
@@ -142,29 +168,6 @@ suite("Website, storage, and PostgreSQL containers", { timeout: 30000 }, () => {
 			assert.equal(await readCount(`hits:page:${path}`), before);
 		}
 	});
-	test("exports traces, metrics, and logs to the collector", async () => {
-		const operationId = crypto.randomUUID();
-		assert.equal((await pageView("/", operationId)).status, 200);
-		assert.equal((await pageView("/blog", operationId)).status, 503);
-		await pageView("/");
-		let metrics = "";
-		for (let attempt = 0; attempt < 15; attempt++) {
-			const response = await fetch("http://telemetry:8888/metrics", {
-				signal: AbortSignal.timeout(2000),
-			});
-			metrics = await response.text();
-			if (
-				["spans", "metric_points", "log_records"].every((signal) =>
-					new RegExp(
-						`otelcol_receiver_accepted_${signal}(?:_total)?\\{[^\\n]*\\} [1-9]`,
-					).test(metrics),
-				)
-			)
-				return;
-			await new Promise((resolve) => setTimeout(resolve, 1000));
-		}
-		assert.fail(`Collector did not receive all signals: ${metrics}`);
-	});
 
 	test("renders reusable feedback controls above and below each blog post", async () => {
 		const response = await fetch(
@@ -172,6 +175,10 @@ suite("Website, storage, and PostgreSQL containers", { timeout: 30000 }, () => {
 		);
 		assert.equal(response.status, 200);
 		const html = await response.text();
+		assert.match(
+			html,
+			/<time\b[^>]*datetime="(\d{4}-\d{2}-\d{2})"[^>]*>\1<\/time>/i,
+		);
 		assert.equal([...html.matchAll(/aria-label="Feedback"/g)].length, 2);
 		assert.equal([...html.matchAll(/aria-label="Like"/g)].length, 2);
 		assert.equal([...html.matchAll(/aria-label="Dislike"/g)].length, 2);

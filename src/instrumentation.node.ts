@@ -1,13 +1,15 @@
 import { registerOTel } from "@vercel/otel";
 import { UndiciInstrumentation } from "@opentelemetry/instrumentation-undici";
-import { telemetryOptions } from "../shared/telemetry-export.ts";
+import { TelemetryExporter } from "../shared/telemetry-export.ts";
 import { initializeMetrics } from "../shared/telemetry.ts";
 
 export function registerTelemetry() {
 	try {
+		const options = new TelemetryExporter().configuration;
+		if (!options) return undefined;
 		registerOTel({
 			serviceName: "website",
-			...telemetryOptions(),
+			...options,
 			propagators: ["tracecontext"],
 			instrumentations: [new UndiciInstrumentation()],
 		});

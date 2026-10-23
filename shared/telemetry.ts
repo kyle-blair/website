@@ -34,6 +34,7 @@ export function recordOperation(
 	outcome: string,
 	status?: number,
 ) {
+	if (!operations || !duration) initializeMetrics();
 	const attributes = {
 		"operation.name": operation,
 		"operation.outcome": outcome,

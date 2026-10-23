@@ -1,4 +1,7 @@
 FROM node:24.19.0-bookworm-slim
+RUN apt-get update \
+    && apt-get install --yes --no-install-recommends curl \
+    && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 ENV NODE_ENV=production PORT=10000
 COPY services/storage/package.json services/storage/package-lock.json ./
