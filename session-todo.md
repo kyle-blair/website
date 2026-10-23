@@ -1,19 +1,25 @@
 1. Revise the language on the home page to be less self-serving.
-2. Implement a component that:
-    1. Sits either at the top and bottom of each blog post (or maybe stays pinned to the
-       screen if it's possible to make that unintrusive).
-    2. Has a "like" button that displays the corresponding number of likes for that
-       page/blog post.
-    3. Has a "dislike" button that displays the corresponding number of dislikes for that
-       page/blog post.
-    4. Displays the net number of likes (+1) and dislikes (-1).
-    5. Is a modular and reusable component.
-    6. Looks cool.
-    7. The user can both like and dislike simultaneously.
-    8. Once clicked, the like and dislike buttons should visually indicate they've been
-       selected.
-    9. A user can unselect the like and/or unlike button that they had previously selected
-       which adjusts the counts appropriately.
-3. Make the page footer look better somehow. Right now there's the footer that looks the same as
-   the header and then another footer kind of awkwardly tacked on that holds the network
-   address stuff.
+2. Improve the persistence mechanism.
+    1. Perhaps use a cookie?
+    2. Perhaps use some kind of public/private key cryptographic scheme to identify
+       visitors in a privacy-evangelizing manner.
+    3. Fix identified deficiencies such as a 15 minute server "memory" duration?
+3. Add a tenets/values/privacy page.
+4. Fix all build warnings.
+    1. Open telemetry package deprecations/renames.
+    2. Nextjs's filesystem reads used for blog posts.
+5. Rationalize the various software development lifecycle actions and clean up the npm
+   scripts accordingly. Actions include things like run (all) tests, run unit tests, check
+   formatting, check types, check lint, validate (everything), build image(s), publish
+   image(s), etcetera.
+    1. Decide whether an entry point "shim" is worthwhile to avoid diverging experiences
+       based on implementation details (such as programming language). Shell script shims
+       are particularly intriguing. Shell is simple and ubiquitous. Every repo could have
+       executable files so you could simply run `./test` and the test script would handle
+       the implementation detail of what command actually triggers tests and how. That
+       solution should also be powerful enough to handle various convenience features such
+       as scoping `./test --scope=unit`. Same with other lifecycle actions such as
+       `./validate` controlling whether a change is accepted or not and `./build` or
+       `./make` being run to generate artifacts.
+    2. Investigate whether "make" (cmake?) is a viable solution.
+6. Remove the over-engineered storage service?

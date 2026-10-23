@@ -1,34 +1,11 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { registerHooks, setSourceMapsSupport } from "node:module";
 import { suite, test } from "node:test";
 import { act, createElement } from "react";
 import { createRoot } from "react-dom/client";
 import { renderToString } from "react-dom/server";
 import { JSDOM } from "jsdom";
-import ts from "typescript";
 
-setSourceMapsSupport(true);
-registerHooks({
-	load(url, context, nextLoad) {
-		if (url.endsWith("/feedback.tsx"))
-			return {
-				format: "module",
-				shortCircuit: true,
-				source: ts.transpileModule(readFileSync(new URL(url), "utf8"), {
-					fileName: new URL(url).pathname,
-					compilerOptions: {
-						target: ts.ScriptTarget.ES2022,
-						module: ts.ModuleKind.ESNext,
-						jsx: ts.JsxEmit.ReactJSX,
-						inlineSourceMap: true,
-						inlineSources: true,
-					},
-				}).outputText,
-			};
-		return nextLoad(url, context);
-	},
-});
 const { Feedback } = await import("../src/components/feedback.tsx");
 const subject = "item:example:first";
 

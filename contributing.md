@@ -6,6 +6,17 @@ Software should read like a story. Comments in code are an anti-pattern and are 
 allowed. If you think a comment is necessary, refactor the code until it is easily
 understood without a comment.
 
+## focused
+
+Do not add every little detail to the readme file. Instead, rely on self-documenting
+software, automated tests, sensible defaults, principle of least astonishment, etcetera so
+that things are natural, robust, and well behaved. The best code is the code you didn't
+write.
+
+## twelve-factor app
+
+Follow the twelve factors documented here [https://12factor.net/](https://12factor.net/).
+
 ## test driven development
 
 All contributors must use test-driven development when implementing anything that matters.
@@ -31,6 +42,9 @@ special placeholder values instead of allowing null values.
 
 ## other tenets
 
+- cloud native
+- object oriented
+
 Most of the "SOLID" acronym:
 
 - single responsibility
@@ -38,11 +52,51 @@ Most of the "SOLID" acronym:
 - inversion of control (dependency injection)
 - depend on abstractions, not concretions
 
+## errors
+
+Always employ proper error handling and propagation.
+Do not swallow errors or lose error information when chaining.
+At minimum, errors must be logged at an appropriate logging level.
+Only catch errors you intend to handle.
+All error messages must:
+
+- Be written in full english sentences, including punctuation.
+- Include a clear explanation of the problem that the target audience is likely to
+  understand.
+- Include actionable suggestions so that the recipient can resolve the error.
+
+## logging
+
+Almost everything should be logged.
+The logs should tell a story about what the application is doing and why.
+Prefer structured logs.
+State facts and avoid assumptions.
+Consider and use the appropriate log level from the six OpenTelemetry log levels.
+
+Level Numeric value Meaning
+TRACE 1 Fine-grained diagnostic events
+DEBUG 5 Information useful for debugging
+INFO 9 An event occurred
+WARN 13 Something potentially problematic occurred, but not an error
+ERROR 17 Something went wrong
+FATAL 21 Fatal error, such as an application or system crash
+
+Here are some examples:
+
+- If an optional feature requires configuration and that configuration is absent, then an
+  info log should be generated.
+- If an optional feature requires configuration and that configuration is provided but
+  invalid, then an error log should be generated.
+- If a required feature requires configuration and that configuration is missing or
+  invalid, then a fatal log should be generated.
+
 ## tests
 
-Run `npm test` for the complete suite, or `npm run test:integration` for integration
-tests only. The integration tests use run a container for each service inside a disposable
-container.
+Run `npm test` for the website, storage, and integration suites. Use `npm run test:unit`,
+`npm run test:storage`, or `npm run test:integration` to run one group. Integration tests
+run the services inside a disposable container and cache build layers by default;
+`npm run test:no-cache` uses fresh inner container storage. Run `npm run lint`,
+`npm run typecheck`, and `npm run format:verify` before submitting changes.
 
 Using Podman on macOS, I needed to increase the ram of Podman's default virtual machine
 from the default 2 GiB to 4 GiB.

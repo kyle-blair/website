@@ -1,11 +1,9 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
 import { registerHooks } from "node:module";
 import { test } from "node:test";
 import { act, createElement } from "react";
 import { createRoot } from "react-dom/client";
 import { JSDOM } from "jsdom";
-import ts from "typescript";
 
 registerHooks({
 	resolve(specifier, context, nextResolve) {
@@ -40,21 +38,6 @@ registerHooks({
 				format: "module",
 				source: fixtures[url],
 				shortCircuit: true,
-			};
-		if (url.endsWith("/site-navigation.tsx"))
-			return {
-				format: "module",
-				shortCircuit: true,
-				source: ts.transpileModule(readFileSync(new URL(url), "utf8"), {
-					fileName: new URL(url).pathname,
-					compilerOptions: {
-						target: ts.ScriptTarget.ES2022,
-						module: ts.ModuleKind.ESNext,
-						jsx: ts.JsxEmit.ReactJSX,
-						inlineSourceMap: true,
-						inlineSources: true,
-					},
-				}).outputText,
 			};
 		return nextLoad(url, context);
 	},

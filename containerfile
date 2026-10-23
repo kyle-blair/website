@@ -1,3 +1,4 @@
+# TODO: provide a permanent fix for this comment
 # Keep this version aligned with engines.node in package.json.
 FROM node:24.22.1-bookworm-slim AS builder
 WORKDIR /app
@@ -21,6 +22,7 @@ ENV NODE_ENV=production \
     PORT=10000
 
 COPY --from=builder --chown=node:node /app/.next/standalone ./
+COPY --chown=node:node scripts/health-check.mjs ./scripts/health-check.mjs
 
 USER node
 EXPOSE 10000

@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { ArrowUpRight } from "lucide-react";
 import Link from "next/link";
-import { formatPostDate, getPosts } from "./posts";
+import { getPosts } from "./posts";
 
 export const metadata: Metadata = {
 	title: "blog",
@@ -31,7 +31,7 @@ export default async function BlogPage() {
 											className="blog-post-date"
 											dateTime={post.date}
 										>
-											{formatPostDate(post.date)}
+											{post.date}
 										</time>
 									)}
 									<ArrowUpRight

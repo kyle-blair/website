@@ -437,10 +437,7 @@ suite("Page hit endpoint", () => {
 
 	test("rejects a malicious path without blocking the request worker", async (context) => {
 		const worker = new Worker(
-			new URL(
-				"../test-fixtures/page-hit-request-worker.ts",
-				import.meta.url,
-			),
+			new URL("./fixtures/page-hit-request-worker.ts", import.meta.url),
 		);
 		context.after(async () => {
 			await worker.terminate();

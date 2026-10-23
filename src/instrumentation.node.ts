@@ -1,18 +1,51 @@
+import { TelemetryInitializationLog } from "../shared/telemetry-initialization-log.ts";
 import { registerOTel } from "@vercel/otel";
 import { UndiciInstrumentation } from "@opentelemetry/instrumentation-undici";
-import { telemetryOptions } from "../shared/telemetry-export.ts";
+import {
+	DefaultTraceProcessor,
+	DefaultMetricReader,
+	DefaultLogProcessor,
+} from "../shared/telemetry-export.ts";
 import { initializeMetrics } from "../shared/telemetry.ts";
 
 export function registerTelemetry() {
 	try {
+		const spanProcessors: DefaultTraceProcessor[] = [];
+		const metricReaders: DefaultMetricReader[] = [];
+		const logRecordProcessors: DefaultLogProcessor[] = [];
+		try {
+			spanProcessors.push(new DefaultTraceProcessor());
+		} catch (error) {
+			new TelemetryInitializationLog("traces", error).write();
+		}
+		try {
+			metricReaders.push(new DefaultMetricReader());
+		} catch (error) {
+			new TelemetryInitializationLog("metrics", error).write();
+		}
+		try {
+			logRecordProcessors.push(new DefaultLogProcessor());
+		} catch (error) {
+			new TelemetryInitializationLog("logs", error).write();
+		}
+		if (
+			spanProcessors.length === 0 &&
+			metricReaders.length === 0 &&
+			logRecordProcessors.length === 0
+		)
+			return;
+
 		registerOTel({
 			serviceName: "website",
-			...telemetryOptions(),
+			autoDetectResources: false,
 			propagators: ["tracecontext"],
 			instrumentations: [new UndiciInstrumentation()],
+			spanProcessors,
+			metricReaders,
+			logRecordProcessors,
 		});
 		initializeMetrics();
-	} catch {
-		process.stderr.write("Telemetry configuration unavailable\n");
+	} catch (error) {
+		new TelemetryInitializationLog("telemetry", error).write();
 	}
 }

@@ -3,7 +3,7 @@ import { mkdtemp, mkdir, writeFile, rm, copyFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { suite, test, type TestContext } from "node:test";
-import { formatPostDate, getPost, getPosts } from "../src/app/blog/posts.ts";
+import { getPost, getPosts } from "../src/app/blog/posts.ts";
 
 async function temporaryPosts(context: TestContext) {
 	const directory = await mkdtemp(path.join(tmpdir(), "website-blog-"));
@@ -117,7 +117,6 @@ suite("Blog posts", () => {
 		);
 		assert.match(posts[0].body, /<p>Alpha body\.<\/p>/);
 		assert.doesNotMatch(posts[0].body, /Date:|<h1>/);
-		assert.equal(formatPostDate(posts[0].date!), "2026-05-03");
 	});
 
 	test("invalid calendar dates and malformed date lines are rejected", async (context) => {

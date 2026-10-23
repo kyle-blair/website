@@ -1,14 +1,11 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { registerHooks, setSourceMapsSupport } from "node:module";
+import { registerHooks } from "node:module";
 import { suite, test } from "node:test";
 import { createElement, act, StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { renderToString } from "react-dom/server";
 import { JSDOM } from "jsdom";
-import ts from "typescript";
-
-setSourceMapsSupport(true);
 
 registerHooks({
 	resolve(specifier, context, nextResolve) {
@@ -20,24 +17,6 @@ registerHooks({
 		return nextResolve(specifier, context);
 	},
 	load(url, context, nextLoad) {
-		if (
-			url.endsWith("/page-navigation.tsx") ||
-			url.endsWith("/page-hit-count.tsx")
-		)
-			return {
-				format: "module",
-				shortCircuit: true,
-				source: ts.transpileModule(readFileSync(new URL(url), "utf8"), {
-					fileName: new URL(url).pathname,
-					compilerOptions: {
-						inlineSourceMap: true,
-						inlineSources: true,
-						target: ts.ScriptTarget.ES2022,
-						jsx: ts.JsxEmit.ReactJSX,
-						module: ts.ModuleKind.ESNext,
-					},
-				}).outputText,
-			};
 		if (url.includes("next/navigation"))
 			return {
 				format: "module",
