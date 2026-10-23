@@ -16,12 +16,13 @@ own user interface, and make a million dollars via medium frequency trading.
 Anyways, cryptocurrency such as Bitcoin famously has eight decimal places of precision for
 quantity, so I was using `java.math.BigDecimal` in many places because it supports arbitrary
 precision.
-For consistency, I decided to use it everywhere, including for technical indicators.
-I ran this software indefinitely on the desktop PC I built around 2012.
+For consistency, I decided to use it everywhere, including for [technical
+indicators](https://en.wikipedia.org/wiki/Technical_indicator).
+I ran this software indefinitely on the desktop computer I built around 2012.
 Eventually, I noticed memory and cpu use would increase substantially.
-This was on an Intel i7-2700k overclocked to 4.6GHz by the way.
-I just started that PC up to confirm the cpu model; it still works surprisingly well,
-despite being 14 years old!
+This was on an Intel i7-2700k cpu overclocked to 4.6GHz by the way.
+I just started that computer up to confirm the cpu model; it still works surprisingly
+well, despite being 14 years old!
 I would also run trading strategy simulations against years' worth of historical price
 data, and these too were slow.
 
