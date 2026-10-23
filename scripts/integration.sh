@@ -7,7 +7,7 @@ runner_name="website-integration-${RANDOM}-$$"
 case "${INTEGRATION_BUILD_CACHE:-0}" in
     0|false) ;;
     1|true)
-        cache_volume=website-integration-build-cache-v1
+        cache_volume=website-integration-build-cache-v2
         runner_name=website-integration-cache-runner
         ;;
     *)
@@ -26,7 +26,7 @@ printf 'Integration runner: %s\n' "$runner_name"
 if [[ -n "$cache_volume" ]]; then
     printf 'Preserving inner images and build cache in volume %s.\n' "$cache_volume"
 fi
-podman build --file integration/runner.containerfile --tag "$runner_image" .
+podman build --file containers/integration/runner.containerfile --tag "$runner_image" .
 
 runner_identifier=
 cleanup() {

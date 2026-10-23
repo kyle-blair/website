@@ -5,15 +5,16 @@ import { HttpInstrumentation } from "@opentelemetry/instrumentation-http";
 import { PgInstrumentation } from "@opentelemetry/instrumentation-pg";
 import { FastifyOtelInstrumentation } from "@fastify/otel";
 import { initializeMetrics } from "../../../shared/telemetry.ts";
-import { telemetryOptions } from "../../../shared/telemetry-export.ts";
+import { TelemetryExporter } from "../../../shared/telemetry-export.ts";
 
 let telemetry: NodeSDK | undefined;
 export function startTelemetry(serviceName = "website-storage") {
-	if (process.env.OTEL_SDK_DISABLED === "true") return undefined;
 	if (telemetry) return telemetry;
 	try {
+		const options = new TelemetryExporter().configuration;
+		if (!options) return undefined;
 		telemetry = new NodeSDK({
-			...telemetryOptions(),
+			...options,
 			resource: resourceFromAttributes({
 				"service.name": process.env.OTEL_SERVICE_NAME || serviceName,
 			}),

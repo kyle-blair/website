@@ -113,15 +113,19 @@ wait_for_service() {
             return 1
         fi
         read -r container_status health_status <<< "$state"
-        if [[ "$container_status" == running && ( -z "$health_status" || "$health_status" == healthy ) ]]; then
-            if [[ "$service" == storage ]] && ! "$container_engine" exec "$identifier" node --input-type=module --eval 'try { const response = await fetch("http://127.0.0.1:10000/health/ready", {signal: AbortSignal.timeout(5000)}); process.exit(response.ok ? 0 : 1); } catch { process.exit(1); }'; then
+        if [[ "$container_status" == running && -z "$health_status" ]]; then
+            printf '%s has no container health check; refusing to report it as ready.\n' "$service" >&2
+            return 1
+        fi
+        if [[ "$container_status" == running && "$health_status" == healthy ]]; then
+            if [[ "$service" == storage ]] && ! "$container_engine" exec "$identifier" curl --fail --silent --show-error --max-time 5 --output /dev/null http://127.0.0.1:10000/health/ready; then
                 printf 'Storage cannot use PostgreSQL. Check database logs for authentication or schema errors. Existing database volumes retain their original accounts and passwords; restore matching credentials or migrate the database account.\n' >&2
                 return 1
             fi
             printf 'Local service %s is running%s.\n' "$service" "${health_status:+ and healthy}"
             return 0
         fi
-        if [[ "$container_status" == exited || "$container_status" == dead || "$health_status" == unhealthy ]]; then
+        if [[ "$container_status" == restarting || "$container_status" == exited || "$container_status" == dead || "$health_status" == unhealthy ]]; then
             printf '%s: %s\n' "$service" "$state" >&2
             return 1
         fi
@@ -134,7 +138,7 @@ wait_for_service() {
 start_services() {
     local service failed=0
     printf 'Building and starting local services: %s.\n' "$*"
-    if ! compose up --detach --build --force-recreate "$@"; then
+    if ! compose up --detach --build --force-recreate --remove-orphans "$@"; then
         report_service_failure "$@"
         return 1
     fi
@@ -151,28 +155,17 @@ start_services() {
     return "$failed"
 }
 
-start_backing_services() {
-    local failed=0
-    start_services database storage || failed=1
-    if start_services telemetry; then
-        export OTEL_EXPORTER_OTLP_ENDPOINT=${OTEL_EXPORTER_OTLP_ENDPOINT:-http://127.0.0.1:4318}
-    else
-        printf 'Telemetry collector unavailable; continuing without configuring local telemetry export.\n' >&2
-        failed=1
-    fi
-    return "$failed"
-}
 
 cleanup() {
     printf 'Stopping local services; retaining the database volume and saved credentials.\n'
-    if ! compose stop storage database telemetry; then
-        printf 'Local service cleanup failed. Stop remaining containers with: %s compose --file compose.yaml --file development/compose.yaml stop storage database telemetry\n' "$container_engine" >&2
+    if ! compose stop storage database; then
+        printf 'Local service cleanup failed. Stop remaining containers with: %s compose --file compose.yaml --file development/compose.yaml stop storage database\n' "$container_engine" >&2
     fi
 }
 trap cleanup EXIT
 trap 'exit 130' INT
 trap 'exit 143' TERM
-if ! start_backing_services; then
+if ! start_services database storage; then
     printf 'Local services are unavailable; retaining the database volume and saved credentials. Review the errors above and retry npm run dev after correcting the problem. The website will continue with unavailable features.\n' >&2
 fi
 start_website "$@"

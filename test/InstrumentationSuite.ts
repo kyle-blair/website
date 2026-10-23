@@ -25,6 +25,11 @@ registerHooks({
 const { register, onRequestError } = await import("../src/instrumentation.ts");
 
 test("uses the documented Next.js integration in the Node.js runtime", async (context) => {
+	const environment = { ...process.env };
+	context.after(() => {
+		process.env = environment;
+	});
+	process.env.OTEL_EXPORTER_OTLP_ENDPOINT = "http://127.0.0.1:1";
 	const previous = process.env.NEXT_RUNTIME;
 	context.after(() => {
 		if (previous === undefined) delete process.env.NEXT_RUNTIME;
@@ -47,6 +52,11 @@ test("uses the documented Next.js integration in the Node.js runtime", async (co
 });
 
 test("keeps the website available when telemetry initialization fails", async (context) => {
+	const environment = { ...process.env };
+	context.after(() => {
+		process.env = environment;
+	});
+	process.env.OTEL_EXPORTER_OTLP_ENDPOINT = "http://127.0.0.1:1";
 	Object.assign(globalThis, { registrationFailure: true });
 	context.after(() =>
 		Object.assign(globalThis, { registrationFailure: false }),
@@ -60,4 +70,20 @@ test("keeps the website available when telemetry initialization fails", async (c
 		await import("../src/instrumentation.node.ts");
 	assert.doesNotThrow(() => registerTelemetry());
 	assert.deepEqual(messages, ["Telemetry configuration unavailable\n"]);
+});
+
+test("does not initialize website telemetry without an endpoint", async (context) => {
+	const environment = { ...process.env };
+	context.after(() => {
+		process.env = environment;
+	});
+	for (const key of Object.keys(process.env))
+		if (key.startsWith("OTEL_")) delete process.env[key];
+	const warning = context.mock.method(console, "warn", () => {});
+	const before = registrations.length;
+	const { registerTelemetry } =
+		await import("../src/instrumentation.node.ts");
+	registerTelemetry();
+	assert.equal(registrations.length, before);
+	assert.equal(warning.mock.callCount(), 0);
 });

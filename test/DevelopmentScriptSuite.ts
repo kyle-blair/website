@@ -53,28 +53,25 @@ printf '%s\\n' "$*" >> "$DEVELOPMENT_COMMAND_LOG"
 case "$*" in
     "compose version") exit "${"${PROVIDER_EXIT_STATUS:-0}"}" ;;
     "info") exit "${"${ENGINE_EXIT_STATUS:-0}"}" ;;
-    "compose up --detach --build --force-recreate telemetry")
-        printf 'telemetry startup attempted\\n'
-        if [[ "${"${COLLECTOR_EXIT_STATUS:-0}"}" != 0 ]]; then
-            printf 'collector configuration is invalid\\n' >&2
-        fi
-        exit "${"${COLLECTOR_EXIT_STATUS:-0}"}"
+    "compose stop storage database") exit "${"${CLEANUP_EXIT_STATUS:-0}"}" ;;
+    "exec storage "*) exit "${"${STORAGE_READINESS_EXIT_STATUS:-0}"}" ;;
+    "compose ps --quiet")
+        for service in database storage website; do
+            if [[ "$service" != "${"${MISSING_SERVICE:-}"}" ]]; then printf '%s\\n' "$service"; fi
+        done
         ;;
-    "compose stop storage database telemetry") exit "${"${CLEANUP_EXIT_STATUS:-0}"}" ;;
-    "exec storage node "*) exit "${"${STORAGE_READINESS_EXIT_STATUS:-0}"}" ;;
-    "compose ps --quiet") printf 'database\\nstorage\\ntelemetry\\nwebsite\\n' ;;
     'inspect --format {{index .Config.Labels "com.docker.compose.service"}} '*) printf '%s\\n' "${"${!#}"}" ;;
     inspect*)
+        if [[ "${"${!#}"}" == "${"${INSPECTION_FAILURE_SERVICE:-}"}" ]]; then exit 1; fi
         case "${"${!#}"}" in
             database) printf '%s\\n' "${"${DATABASE_STATE:-running healthy}"}" ;;
             storage) printf '%s\\n' "${"${STORAGE_STATE:-running healthy}"}" ;;
-            telemetry) printf '%s\\n' "${"${TELEMETRY_STATE:-running}"}" ;;
             *) exit 2 ;;
         esac
         ;;
-    "compose up --detach --build --force-recreate --wait storage"|"compose up --detach --build --force-recreate storage"|"compose up --detach --build --force-recreate database storage")
+    "compose up --detach --build --force-recreate --remove-orphans --wait storage"|"compose up --detach --build --force-recreate --remove-orphans storage"|"compose up --detach --build --force-recreate --remove-orphans database storage")
         if [[ "$*" == *"--wait"* && "${"${WAIT_FOR_SERVICES_NOT_BEING_STARTED:-false}"}" == true ]]; then
-            printf 'Still waiting for website and telemetry containers that were not started\\n' >&2
+            printf 'Still waiting for website containers that were not started\\n' >&2
             exit 124
         fi
         [[ "$STORAGE_SERVICE_TOKEN" == "$EXPECTED_STORAGE_SERVICE_TOKEN" ]] || exit 12
@@ -218,25 +215,13 @@ exit "${"${WEBSITE_EXIT_STATUS:-0}"}"
 		assert.match(result.stdout, /website started/);
 	});
 
-	test("starts the website when the collector cannot start", (context) => {
-		const { run } = fixture(context);
-		const result = run("test-token", {
-			STORAGE_SERVICE_TOKEN: "test-token",
-			COLLECTOR_EXIT_STATUS: "1",
-		});
-		assert.equal(result.status, 0, result.stdout + result.stderr);
-		assert.match(result.stdout, /website started/);
-		assert.match(result.stderr, /Telemetry collector unavailable/);
-	});
-
-	test("attempts telemetry even when storage fails and explains how to diagnose and retry", (context) => {
+	test("explains how to diagnose and retry backing service failures", (context) => {
 		const { run } = fixture(context);
 		const result = run("test-token", {
 			STORAGE_SERVICE_TOKEN: "test-token",
 			SERVICE_EXIT_STATUS: "1",
 		});
 		assert.equal(result.status, 0, result.stdout + result.stderr);
-		assert.match(result.stdout, /telemetry startup attempted/);
 		assert.match(result.stdout, /website started/);
 		assert.match(result.stderr, /storage port is already allocated/);
 		assert.match(
@@ -250,41 +235,78 @@ exit "${"${WEBSITE_EXIT_STATUS:-0}"}"
 		assert.match(result.stderr, /npm run dev/);
 	});
 
-	test("reports collector startup errors with a command to inspect its logs", (context) => {
-		const { run } = fixture(context);
-		const result = run("test-token", {
-			STORAGE_SERVICE_TOKEN: "test-token",
-			COLLECTOR_EXIT_STATUS: "1",
-		});
-		assert.equal(result.status, 0, result.stdout + result.stderr);
-		assert.match(result.stdout, /website started/);
-		assert.match(result.stderr, /collector configuration is invalid/);
-		assert.match(
-			result.stderr,
-			/Could not start local services: telemetry/,
-		);
-		assert.match(result.stderr, /logs --tail 50 telemetry/);
-	});
-
 	for (const [service, state] of [
 		["database", "running unhealthy"],
 		["storage", "exited"],
-		["telemetry", "exited"],
+		["storage", "dead"],
+		["storage", "restarting"],
+		["database", "dead"],
+		["database", "restarting"],
+		["storage", "running unhealthy"],
+		["database", "exited"],
 	]) {
 		test(`reports ${service} failing after its detached startup command succeeds`, (context) => {
 			const { run } = fixture(context);
 			const result = run("test-token", {
 				STORAGE_SERVICE_TOKEN: "test-token",
-				[`${service.toUpperCase()}_STATE`]: state,
+				[`${service.toUpperCase().replaceAll("-", "_")}_STATE`]: state,
 			});
 			assert.equal(result.status, 0, result.stdout + result.stderr);
-			assert.match(result.stdout, /telemetry startup attempted/);
 			assert.match(result.stdout, /website started/);
 			assert.ok(
 				result.stderr.includes(`${service}: ${state}`),
 				result.stderr,
 			);
 			assert.match(result.stderr, /logs --tail 50/);
+		});
+	}
+
+	for (const service of ["database", "storage"]) {
+		for (const failure of [
+			"MISSING_SERVICE",
+			"INSPECTION_FAILURE_SERVICE",
+		]) {
+			test(`reports ${service} when ${failure} prevents its health check`, (context) => {
+				const { run } = fixture(context);
+				const result = run("test-token", {
+					STORAGE_SERVICE_TOKEN: "test-token",
+					[failure]: service,
+				});
+				assert.equal(result.status, 0, result.stdout + result.stderr);
+				assert.match(result.stdout, /website started/);
+				assert.ok(
+					result.stderr.includes(
+						`Could not start local services: ${service === "storage" ? "database storage" : service}`,
+					),
+					result.stderr,
+				);
+				assert.ok(
+					!result.stdout.includes(
+						`Local service ${service} is running`,
+					),
+				);
+			});
+		}
+	}
+
+	for (const service of ["database", "storage"]) {
+		test(`rejects ${service} without a container health check`, (context) => {
+			const { run } = fixture(context);
+			const result = run("test-token", {
+				STORAGE_SERVICE_TOKEN: "test-token",
+				[`${service.toUpperCase().replaceAll("-", "_")}_STATE`]:
+					"running",
+			});
+			assert.equal(result.status, 0, result.stdout + result.stderr);
+			assert.ok(
+				result.stderr.includes(
+					`${service} has no container health check`,
+				),
+				result.stderr,
+			);
+			assert.ok(
+				!result.stdout.includes(`Local service ${service} is running`),
+			);
 		});
 	}
 
@@ -302,21 +324,18 @@ exit "${"${WEBSITE_EXIT_STATUS:-0}"}"
 		);
 	});
 
-	test("checks only development containers and starts the collector before the website", (context) => {
+	test("starts only the database and storage containers", (context) => {
 		const { directory, run } = fixture(context);
 		const result = run("test-token", {
 			STORAGE_SERVICE_TOKEN: "test-token",
 		});
 		assert.equal(result.status, 0, result.stdout + result.stderr);
 		const commands = readFileSync(join(directory, "commands.log"), "utf8");
-		for (const service of ["database", "storage", "telemetry"]) {
+		for (const service of ["database", "storage"]) {
 			assert.ok(commands.includes(`}} ${service}`), commands);
 		}
 		assert.doesNotMatch(commands, /--wait|--all --quiet|--quiet website/);
-		assert.match(
-			result.stdout,
-			/telemetry startup attempted[\s\S]*website started/,
-		);
+		assert.doesNotMatch(commands, /telemetry|4318/);
 	});
 
 	test("explains how to restore Compose when its provider is unavailable", (context) => {
@@ -360,7 +379,6 @@ exit "${"${WEBSITE_EXIT_STATUS:-0}"}"
 		});
 		assert.equal(result.status, 0, result.stdout + result.stderr);
 		assert.match(result.stdout, /website started/);
-		assert.match(result.stdout, /telemetry startup attempted/);
 		assert.match(result.stderr, /Storage cannot use PostgreSQL/);
 		assert.match(result.stderr, /logs --tail 50 database storage/);
 		assert.match(result.stderr, /original accounts and passwords/);
@@ -369,7 +387,6 @@ exit "${"${WEBSITE_EXIT_STATUS:-0}"}"
 	for (const failure of [
 		"SERVICE_EXIT_STATUS",
 		"STORAGE_READINESS_EXIT_STATUS",
-		"COLLECTOR_EXIT_STATUS",
 	]) {
 		test(`preserves database data and credentials when ${failure} prevents startup`, (context) => {
 			const { directory, run } = fixture(context);
@@ -391,13 +408,7 @@ exit "${"${WEBSITE_EXIT_STATUS:-0}"}"
 			assert.match(result.stderr, /retaining.*database/i);
 			assert.equal(
 				commands.split(
-					"compose up --detach --build --force-recreate database storage",
-				).length - 1,
-				1,
-			);
-			assert.equal(
-				commands.split(
-					"compose up --detach --build --force-recreate telemetry",
+					"compose up --detach --build --force-recreate --remove-orphans database storage",
 				).length - 1,
 				1,
 			);

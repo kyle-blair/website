@@ -15,5 +15,12 @@ jobs:
               with:
                   node-version-file: package.json
                   cache: npm
+                  cache-dependency-path: |
+                      package-lock.json
+                      services/storage/package-lock.json
             - run: npm clean-install
+            - run: npm --prefix services/storage clean-install
+            - run: npm run lint
+            - run: npm run format:verify
+            - run: npm run typecheck
             - run: npm test

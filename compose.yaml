@@ -1,5 +1,20 @@
 services:
     website:
+        healthcheck:
+            test:
+                - CMD
+                - curl
+                - --fail
+                - --silent
+                - --show-error
+                - --max-time
+                - "2"
+                - --output
+                - /dev/null
+                - http://127.0.0.1:10000/api/health
+            interval: 5s
+            timeout: 3s
+            retries: 10
         build:
             context: .
             dockerfile: containerfile
@@ -9,7 +24,9 @@ services:
             STORAGE_SERVICE_URL: http://storage:10000
             STORAGE_SERVICE_TOKEN: ${STORAGE_SERVICE_TOKEN:?Set STORAGE_SERVICE_TOKEN}
             STORAGE_ALLOW_HTTP: "true"
-            OTEL_EXPORTER_OTLP_ENDPOINT: http://telemetry:4318
+            OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
+            OTEL_EXPORTER_OTLP_HEADERS: ${OTEL_EXPORTER_OTLP_HEADERS:-}
+            OTEL_EXPORTER_OTLP_PROTOCOL: ${OTEL_EXPORTER_OTLP_PROTOCOL:-http/protobuf}
         networks: [public, storage]
         restart: unless-stopped
         stop_grace_period: 30s
@@ -20,7 +37,9 @@ services:
             dockerfile: services/storage/containerfile
         environment:
             STORAGE_SERVICE_TOKEN: ${STORAGE_SERVICE_TOKEN:?Set STORAGE_SERVICE_TOKEN}
-            OTEL_EXPORTER_OTLP_ENDPOINT: http://telemetry:4318
+            OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
+            OTEL_EXPORTER_OTLP_HEADERS: ${OTEL_EXPORTER_OTLP_HEADERS:-}
+            OTEL_EXPORTER_OTLP_PROTOCOL: ${OTEL_EXPORTER_OTLP_PROTOCOL:-http/protobuf}
             PGHOST: database
             PGPORT: "5432"
             PGDATABASE: website
@@ -31,27 +50,20 @@ services:
                 condition: service_healthy
         healthcheck:
             test:
-                [
-                    CMD,
-                    node,
-                    --input-type=module,
-                    --eval,
-                    "const response = await fetch('http://127.0.0.1:10000/health/live'); process.exit(response.ok ? 0 : 1)",
-                ]
+                - CMD
+                - curl
+                - --fail
+                - --silent
+                - --show-error
+                - --max-time
+                - "2"
+                - --output
+                - /dev/null
+                - http://127.0.0.1:10000/health/live
             interval: 5s
             timeout: 3s
             retries: 10
-        networks: [storage]
-        restart: unless-stopped
-        stop_grace_period: 30s
-
-    telemetry:
-        build:
-            context: ./services/telemetry
-            dockerfile: containerfile
-        volumes:
-            - telemetry-data:/var/data
-        networks: [storage]
+        networks: [public, storage]
         restart: unless-stopped
         stop_grace_period: 30s
 
@@ -80,4 +92,3 @@ networks:
 
 volumes:
     postgres-data:
-    telemetry-data:

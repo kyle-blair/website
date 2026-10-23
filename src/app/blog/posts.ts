@@ -104,7 +104,3 @@ export async function getPosts(directory = postsDirectory) {
 export async function getPost(slug: string) {
 	return (await getPosts()).find((post) => post.slug === slug);
 }
-
-export function formatPostDate(date: string) {
-	return date;
-}

@@ -6,6 +6,13 @@ Software should read like a story. Comments in code are an anti-pattern and are 
 allowed. If you think a comment is necessary, refactor the code until it is easily
 understood without a comment.
 
+## focused
+
+Do not add every little detail to the readme file. Instead, rely on self-documenting
+software, automated tests, sensible defaults, principle of least astonishment, etcetera so
+that things are natural, robust, and well behaved. The best code is the code you didn't
+write.
+
 ## test driven development
 
 All contributors must use test-driven development when implementing anything that matters.
@@ -31,6 +38,9 @@ special placeholder values instead of allowing null values.
 
 ## other tenets
 
+- cloud native
+- object oriented
+
 Most of the "SOLID" acronym:
 
 - single responsibility
@@ -40,9 +50,11 @@ Most of the "SOLID" acronym:
 
 ## tests
 
-Run `npm test` for the complete suite, or `npm run test:integration` for integration
-tests only. The integration tests use run a container for each service inside a disposable
-container.
+Run `npm test` for the website, storage, and integration suites. Use `npm run test:unit`,
+`npm run test:storage`, or `npm run test:integration` to run one group. Integration tests
+run the services inside a disposable container and cache build layers by default;
+`npm run test:no-cache` uses fresh inner container storage. Run `npm run lint`,
+`npm run typecheck`, and `npm run format:verify` before submitting changes.
 
 Using Podman on macOS, I needed to increase the ram of Podman's default virtual machine
 from the default 2 GiB to 4 GiB.
