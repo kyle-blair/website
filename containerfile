@@ -1,5 +1,5 @@
 # Keep this version aligned with engines.node in package.json.
-FROM node:24.19.0-bookworm-slim AS builder
+FROM node:24.22.1-bookworm-slim AS builder
 WORKDIR /app
 
 ENV NEXT_TELEMETRY_DISABLED=1
@@ -12,7 +12,7 @@ COPY src ./src
 COPY shared ./shared
 RUN npm run build
 
-FROM node:24.19.0-bookworm-slim AS runner
+FROM node:24.22.1-bookworm-slim AS runner
 WORKDIR /app
 
 ENV NODE_ENV=production \
