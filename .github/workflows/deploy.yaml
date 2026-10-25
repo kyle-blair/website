@@ -1,0 +1,14 @@
+on:
+    workflow_call:
+        secrets:
+            deploy_url:
+                required: true
+
+jobs:
+    deploy:
+        runs-on: ${{ vars.runner || 'ubuntu-24.04' }}
+        steps:
+            - name: deploy
+              env:
+                  deploy_url: ${{ secrets.deploy_url }}
+              run: curl --fail --silent --show-error --get --data-urlencode "ref=${GITHUB_SHA}" "$deploy_url"
