@@ -220,13 +220,10 @@ test("streams the actual address in one decorative column, with a stable accessi
 			dom.window.getComputedStyle(column).flexDirection,
 			"column-reverse",
 		);
+		const characters = [...column.children] as HTMLElement[];
 		assert.equal(
-			(column.firstElementChild as HTMLElement).style.opacity,
-			"1",
-		);
-		assert.ok(
-			Number((column.lastElementChild as HTMLElement).style.opacity) <
-				0.3,
+			characters[1].style.opacity,
+			characters.at(-1)!.style.opacity,
 		);
 		await act(() => root.unmount());
 		assert.equal(signal?.aborted, true);

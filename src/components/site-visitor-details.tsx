@@ -117,10 +117,6 @@ export function SiteVisitorDetails() {
 							<span
 								className="network-address-stream__character"
 								key={index}
-								style={{
-									opacity:
-										1 - (0.8 * index) / streamText.length,
-								}}
 							>
 								{character}
 							</span>
