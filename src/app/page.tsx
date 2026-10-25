@@ -13,7 +13,7 @@ export default function Home() {
 					<p className="eyebrow">home</p>
 					<h1 id="home-heading">kyle blair</h1>
 					<p className="hero__statement">
-						I like creating surprisingly capable solutions.
+						I like engineering cool sh*t.
 					</p>
 					<a className="hero__scroll" href="#approach">
 						scroll to explore{" "}
@@ -55,7 +55,7 @@ export default function Home() {
 						<p className="eyebrow">background</p>
 						<div className="home-chapter__copy">
 							<h2 id="background-heading">
-								Put it into practice.
+								Build on experience.
 							</h2>
 							<p>
 								I combine that approach with a computer
