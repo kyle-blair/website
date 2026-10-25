@@ -1,3 +1,5 @@
+import { fallingCharacterSpeed } from "./falling-character-speed.ts";
+
 const characters = ["0", "4", "2", "/", "<", ">", "{", "}", ":"];
 
 type Trace = {
@@ -76,14 +78,28 @@ export function startSignalField(
 		drawingContext.font = '12px "SFMono-Regular", Consolas, monospace';
 		drawingContext.textAlign = "center";
 
+		const addressBounds = target.ownerDocument
+			?.querySelector(".network-address-stream__window")
+			?.getBoundingClientRect();
+		const canvasBounds = addressBounds && target.getBoundingClientRect();
+
 		const columnWidth = 30;
 		const rowHeight = 24;
 
 		for (const trace of traces) {
 			const x = trace.column * columnWidth + columnWidth / 2;
+			if (
+				addressBounds &&
+				canvasBounds &&
+				x + columnWidth / 2 + canvasBounds.left > addressBounds.left &&
+				x - columnWidth / 2 + canvasBounds.left < addressBounds.right
+			)
+				continue;
 			const fieldWeight = 0.78;
 			const head =
-				(trace.offset + animationTime * trace.speed * 0.035) %
+				(trace.offset +
+					(animationTime * trace.speed * fallingCharacterSpeed) /
+						1000) %
 				(height + 240);
 
 			for (let index = 0; index < trace.length; index += 1) {

@@ -5,6 +5,7 @@ import { test } from "node:test";
 import { act, createElement } from "react";
 import { createRoot } from "react-dom/client";
 import { JSDOM } from "jsdom";
+import { averageFallingCharacterSpeed } from "../src/components/falling-character-speed.ts";
 import ts from "typescript";
 
 registerHooks({
@@ -52,6 +53,16 @@ const { SiteVisitorDetails } =
 
 test("streams the actual address in one decorative column, with a stable accessible value and pause control", async () => {
 	const dom = new JSDOM('<div id="root"></div>');
+	let windowHeight = 600;
+	Object.defineProperty(dom.window.HTMLElement.prototype, "clientHeight", {
+		get(this: HTMLElement) {
+			if (this.classList.contains("network-address-stream__window"))
+				return windowHeight;
+			if (this.classList.contains("network-address-stream__track"))
+				return 240;
+			return 0;
+		},
+	});
 	const previous = {
 		window: globalThis.window,
 		document: globalThis.document,
@@ -96,8 +107,27 @@ test("streams the actual address in one decorative column, with a stable accessi
 		assert.ok(
 			Math.abs(
 				parseFloat((track as HTMLElement).style.animationDuration) -
-					("2001:db8::42".length + 21) * 1.44,
+					(600 + 240) / averageFallingCharacterSpeed,
 			) < 0.000001,
+		);
+		const button = dom.window.document.querySelector("button")!;
+		assert.equal(
+			button.style.getPropertyValue("--address-animation-window-height"),
+			"600px",
+		);
+		windowHeight = 800;
+		await act(() =>
+			dom.window.dispatchEvent(new dom.window.Event("resize")),
+		);
+		assert.ok(
+			Math.abs(
+				parseFloat((track as HTMLElement).style.animationDuration) -
+					(600 + 240) / averageFallingCharacterSpeed,
+			) < 0.000001,
+		);
+		assert.equal(
+			button.style.getPropertyValue("--address-animation-window-height"),
+			"600px",
 		);
 		const style = dom.window.document.createElement("style");
 		style.textContent = readFileSync(
@@ -114,7 +144,44 @@ test("streams the actual address in one decorative column, with a stable accessi
 		);
 		assert.equal(
 			(fall.cssRules[1] as CSSKeyframeRule).style.transform,
-			"translateY(calc(var(--address-window-height) + 3rem))",
+			"translateY(var(--address-animation-window-height))",
+		);
+		assert.equal(fall.cssRules.length, 2);
+		const streamRule = [...style.sheet!.cssRules].find(
+			(rule) =>
+				"selectorText" in rule &&
+				rule.selectorText === ".network-address-stream",
+		) as CSSStyleRule;
+		assert.equal(streamRule.style.top, "calc(var(--header-height) + 1px)");
+		assert.equal(streamRule.style.transform, "");
+		const windowRule = [...style.sheet!.cssRules].find(
+			(rule) =>
+				"selectorText" in rule &&
+				rule.selectorText === ".network-address-stream__window",
+		) as CSSStyleRule;
+		assert.equal(
+			windowRule.style
+				.getPropertyValue("--address-window-height")
+				.replace(/\s+/g, ""),
+			"calc(100dvh-2*var(--header-height)-2px)",
+		);
+		assert.equal(
+			windowRule.style.getPropertyValue("mask-image"),
+			"linear-gradient(transparent, black 6%, black 94%, transparent)",
+		);
+		const character = [...style.sheet!.cssRules].find(
+			(rule) =>
+				"selectorText" in rule &&
+				rule.selectorText === ".network-address-stream__character",
+		) as CSSStyleRule;
+		assert.equal(
+			character.style.height.replace(/\s+/g, ""),
+			"min(1.5rem,calc(var(--address-animation-window-height)*0.7/var(--address-length)))",
+		);
+		assert.equal(character.style.lineHeight, character.style.height);
+		assert.equal(
+			character.style.fontSize.replace(/\s+/g, ""),
+			"min(0.6875rem,calc(var(--address-animation-window-height)*0.7/var(--address-length)))",
 		);
 		const reducedMotion = [...style.sheet!.cssRules].find(
 			(rule) =>
@@ -130,7 +197,10 @@ test("streams the actual address in one decorative column, with a stable accessi
 			staticCharacter.style.height.replace(/\s+/g, ""),
 			"min(1.5rem,calc(var(--address-window-height)/var(--address-length)))",
 		);
-		const button = dom.window.document.querySelector("button")!;
+		assert.equal(
+			staticCharacter.style.fontSize.replace(/\s+/g, ""),
+			"min(0.6875rem,calc(var(--address-window-height)/var(--address-length)))",
+		);
 		assert.equal(
 			button.getAttribute("aria-label"),
 			"Pause network address animation",

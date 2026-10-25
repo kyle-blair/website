@@ -205,4 +205,42 @@ suite("Signal field", () => {
 		assert.equal(moving.frames.size, 0);
 		assert.equal(moving.listeners.size, 0);
 	});
+
+	test("keeps the network address lane free of falling background characters", (context) => {
+		const animation = mountSignalField(context);
+		let addressLeft = 100;
+		Object.assign(animation.canvas, {
+			getBoundingClientRect: () => ({ left: 30, top: 50 }),
+		});
+		Object.assign(animation.canvas, {
+			ownerDocument: {
+				querySelector: (selector: string) => {
+					assert.equal(selector, ".network-address-stream__window");
+					return {
+						getBoundingClientRect: () => ({
+							left: addressLeft,
+							right: addressLeft + 16,
+							top: 250,
+							bottom: 350,
+						}),
+					};
+				},
+			},
+		});
+
+		const glyphs = animation.frame(100);
+		assert.ok(glyphs.some(({ x }) => x === 45));
+		assert.ok(glyphs.every(({ x }) => x !== 75));
+		for (let time = 116; time <= 916; time += 16) {
+			assert.ok(animation.frame(time).every(({ x }) => x !== 75));
+		}
+		addressLeft = 70;
+		const movedGlyphs = animation.frame(932);
+		assert.ok(movedGlyphs.every(({ x }) => x !== 45));
+		assert.ok(movedGlyphs.some(({ x }) => x === 75));
+		Object.assign(animation.canvas, {
+			ownerDocument: { querySelector: () => null },
+		});
+		assert.ok(animation.frame(948).some(({ x }) => x === 45));
+	});
 });

@@ -1,23 +1,41 @@
 "use client";
+import {
+	useEffect,
+	useLayoutEffect,
+	useRef,
+	useState,
+	type CSSProperties,
+} from "react";
 
-import { useEffect, useState, type CSSProperties } from "react";
 import { UNKNOWN_NETWORK_ADDRESS } from "@/domain/network-address-value";
 import { NetworkAddressView } from "./network-address-view";
+import { averageFallingCharacterSpeed } from "./falling-character-speed.ts";
 
 type SiteVisitorResponse = {
 	networkAddress: string;
 };
 
-const maximumVisibleCharacters = 19;
-const gapCharacters = 2;
-const secondsPerCharacter = 1.44;
-
 export function SiteVisitorDetails() {
 	const [address, setAddress] = useState(UNKNOWN_NETWORK_ADDRESS);
 	const [isLoading, setIsLoading] = useState(true);
 	const [isPaused, setIsPaused] = useState(false);
+	const windowRef = useRef<HTMLButtonElement>(null);
+	const trackRef = useRef<HTMLSpanElement>(null);
+	const [animationDuration, setAnimationDuration] = useState(0);
 	const view = new NetworkAddressView(isLoading, address);
 	const streamText = view.isLoading ? view.glyphs.join("") : view.text;
+
+	useLayoutEffect(() => {
+		const addressWindow = windowRef.current!;
+		const track = trackRef.current!;
+		const windowHeight = addressWindow.clientHeight;
+		addressWindow.style.setProperty(
+			"--address-animation-window-height",
+			`${windowHeight}px`,
+		);
+		const distance = windowHeight + track.clientHeight;
+		setAnimationDuration(distance / averageFallingCharacterSpeed);
+	}, [streamText]);
 
 	useEffect(() => {
 		const abortController = new AbortController();
@@ -70,6 +88,7 @@ export function SiteVisitorDetails() {
 			</p>
 			<button
 				className="network-address-stream__window"
+				ref={windowRef}
 				type="button"
 				aria-label={
 					isPaused
@@ -87,9 +106,10 @@ export function SiteVisitorDetails() {
 			>
 				<span
 					className="network-address-stream__track"
+					ref={trackRef}
 					aria-hidden="true"
 					style={{
-						animationDuration: `${(streamText.length + maximumVisibleCharacters + gapCharacters) * secondsPerCharacter}s`,
+						animationDuration: `${animationDuration}s`,
 					}}
 				>
 					<span className="network-address-stream__address">
