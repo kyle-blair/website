@@ -7,7 +7,7 @@ services:
       dockerfilePath: ./containerfile
       dockerContext: .
       branch: main
-      autoDeployTrigger: checksPass
+      autoDeployTrigger: off
       healthCheckPath: /api/health
       maxShutdownDelaySeconds: 30
       envVars:
@@ -32,7 +32,7 @@ services:
       dockerfilePath: ./services/storage/containerfile
       dockerContext: .
       branch: main
-      autoDeployTrigger: checksPass
+      autoDeployTrigger: off
       healthCheckPath: /health/live
       maxShutdownDelaySeconds: 30
       envVars:
@@ -53,7 +53,7 @@ services:
       dockerfilePath: ./services/telemetry/containerfile
       dockerContext: ./services/telemetry
       branch: main
-      autoDeployTrigger: checksPass
+      autoDeployTrigger: off
       disk:
           name: telemetry-data
           mountPath: /var/data
