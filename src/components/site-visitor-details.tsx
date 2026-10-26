@@ -22,6 +22,10 @@ export function SiteVisitorDetails() {
 	const windowRef = useRef<HTMLButtonElement>(null);
 	const trackRef = useRef<HTMLSpanElement>(null);
 	const [animationDuration, setAnimationDuration] = useState(0);
+	const [flicker, setFlicker] = useState({
+		cycle: 0,
+		timings: [] as CSSProperties[],
+	});
 	const view = new NetworkAddressView(isLoading, address);
 	const streamText = view.isLoading ? view.glyphs.join("") : view.text;
 
@@ -35,6 +39,25 @@ export function SiteVisitorDetails() {
 		);
 		const distance = windowHeight + track.clientHeight;
 		setAnimationDuration(distance / averageFallingCharacterSpeed);
+	}, [streamText]);
+
+	useEffect(() => {
+		if (window.matchMedia("(prefers-reduced-motion: reduce)").matches)
+			return;
+		function randomizeFlickerTimings() {
+			const start = 2.084 + Math.random() * 0.316;
+			const timings = [...streamText].map(() => {
+				const duration = 0.128 + Math.random() * 0.672;
+				return {
+					animationDelay: `${start}s`,
+					animationDuration: `${duration}s`,
+				};
+			});
+			setFlicker((previous) => ({ cycle: previous.cycle + 1, timings }));
+		}
+		randomizeFlickerTimings();
+		const timer = window.setInterval(randomizeFlickerTimings, 3200);
+		return () => window.clearInterval(timer);
 	}, [streamText]);
 
 	useEffect(() => {
@@ -116,7 +139,9 @@ export function SiteVisitorDetails() {
 						{[...streamText].map((character, index) => (
 							<span
 								className="network-address-stream__character"
-								key={index}
+								key={`${flicker.cycle}:${index}`}
+								data-character={character}
+								style={flicker.timings[index]}
 							>
 								{character}
 							</span>
