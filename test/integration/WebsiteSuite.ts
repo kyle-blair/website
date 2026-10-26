@@ -1,8 +1,23 @@
 import assert from "node:assert/strict";
 import { suite, test } from "node:test";
-import { readCount } from "./storage.ts";
 
 const origin = new URL("http://website:10000");
+
+async function pageCount(path: string): Promise<number> {
+	const response = await fetch(
+		new URL(`/api/page-hits?path=${encodeURIComponent(path)}`, origin),
+	);
+	assert.equal(response.status, 200);
+	return (await response.json()).count;
+}
+
+async function feedbackTotals(subject: string) {
+	const response = await fetch(
+		new URL(`/api/feedback?subject=${encodeURIComponent(subject)}`, origin),
+	);
+	assert.equal(response.status, 200);
+	return (await response.json()) as { likes: number; dislikes: number };
+}
 
 function pageView(
 	path: string,
@@ -22,7 +37,7 @@ function pageView(
 	});
 }
 
-suite("Website, storage, and PostgreSQL containers", { timeout: 30000 }, () => {
+suite("Website and PostgreSQL containers", { timeout: 30000 }, () => {
 	test("renders matching header and footer navigation with the address stream outside both", async () => {
 		const response = await fetch(origin, {
 			signal: AbortSignal.timeout(5000),
@@ -50,7 +65,7 @@ suite("Website, storage, and PostgreSQL containers", { timeout: 30000 }, () => {
 	});
 
 	test("serves page markup with a loading counter before recording a view", async () => {
-		const before = await readCount("hits:page:/");
+		const before = await pageCount("/");
 		const response = await fetch(origin, {
 			signal: AbortSignal.timeout(5000),
 		});
@@ -71,14 +86,13 @@ suite("Website, storage, and PostgreSQL containers", { timeout: 30000 }, () => {
 			[...html.matchAll(/aria-label="Loading page views"/g)].length,
 			1,
 		);
-		assert.equal(html.includes(process.env.STORAGE_SERVICE_TOKEN!), false);
-		assert.equal(await readCount("hits:page:/"), before);
+		assert.equal(html.includes("postgresql://"), false);
+		assert.equal(await pageCount("/"), before);
 	});
 
-	test("accepts the configured browser origin and persists counts through all services", async () => {
+	test("accepts the configured browser origin and persists page counts", async () => {
 		for (const path of ["/", "/blog", "/contact"]) {
-			const key = `hits:page:${path}`;
-			const before = await readCount(key);
+			const before = await pageCount(path);
 			const operationId = crypto.randomUUID();
 			for (const identifier of [operationId, operationId.toUpperCase()]) {
 				const response = await pageView(path, identifier);
@@ -89,23 +103,45 @@ suite("Website, storage, and PostgreSQL containers", { timeout: 30000 }, () => {
 				);
 				assert.deepEqual(await response.json(), { count: before + 1 });
 			}
-			assert.equal(await readCount(key), before + 1);
+			assert.equal(await pageCount(path), before + 1);
 		}
 	});
 
+	test("serializes concurrent adjustments and deduplicates concurrent retries", async () => {
+		const path = "/contact";
+		const before = await pageCount(path);
+		const operationId = crypto.randomUUID();
+		const retries = await Promise.all(
+			Array.from({ length: 20 }, () => pageView(path, operationId)),
+		);
+		for (const response of retries) {
+			assert.equal(response.status, 200);
+			assert.deepEqual(await response.json(), { count: before + 1 });
+		}
+
+		const adjustments = await Promise.all(
+			Array.from({ length: 20 }, () => pageView(path)),
+		);
+		assert.deepEqual(
+			adjustments.map((response) => response.status),
+			Array(20).fill(200),
+		);
+		assert.equal(await pageCount(path), before + 21);
+	});
+
 	test("rejects cross-site requests without changing stored counts", async () => {
-		const before = await readCount("hits:page:/");
+		const before = await pageCount("/");
 		const response = await pageView(
 			"/",
 			crypto.randomUUID(),
 			"https://example.invalid",
 		);
 		assert.equal(response.status, 403);
-		assert.equal(await readCount("hits:page:/"), before);
+		assert.equal(await pageCount("/"), before);
 	});
 
 	test("rejects oversized bodies with and without a content length without recording a view", async () => {
-		const before = await readCount("hits:page:/");
+		const before = await pageCount("/");
 		const payload = new TextEncoder().encode(
 			JSON.stringify({
 				path: "/",
@@ -141,7 +177,7 @@ suite("Website, storage, and PostgreSQL containers", { timeout: 30000 }, () => {
 				error: "Request body too large",
 			});
 		}
-		assert.equal(await readCount("hits:page:/"), before);
+		assert.equal(await pageCount("/"), before);
 	});
 
 	test("rejects malformed paths while the website remains responsive", async () => {
@@ -155,7 +191,7 @@ suite("Website, storage, and PostgreSQL containers", { timeout: 30000 }, () => {
 
 	test("reads ancestor counts without recording additional visits", async () => {
 		for (const path of ["/", "/blog"]) {
-			const before = await readCount(`hits:page:${path}`);
+			const before = await pageCount(path);
 			const response = await fetch(
 				new URL(
 					`/api/page-hits?path=${encodeURIComponent(path)}`,
@@ -165,7 +201,7 @@ suite("Website, storage, and PostgreSQL containers", { timeout: 30000 }, () => {
 			);
 			assert.equal(response.status, 200);
 			assert.deepEqual(await response.json(), { count: before });
-			assert.equal(await readCount(`hits:page:${path}`), before);
+			assert.equal(await pageCount(path), before);
 		}
 	});
 
@@ -189,9 +225,8 @@ suite("Website, storage, and PostgreSQL containers", { timeout: 30000 }, () => {
 		"item:example:first",
 		"item:example:second",
 	]) {
-		test("persists anonymous feedback and deduplicates retries through all services", async () => {
-			const likes = await readCount(`likes:${subject}`);
-			const dislikes = await readCount(`dislikes:${subject}`);
+		test("persists anonymous feedback and deduplicates retries", async () => {
+			const { likes, dislikes } = await feedbackTotals(subject);
 			const get = () =>
 				fetch(
 					new URL(
@@ -256,8 +291,10 @@ suite("Website, storage, and PostgreSQL containers", { timeout: 30000 }, () => {
 				}),
 			});
 			assert.equal(rejected.status, 403);
-			assert.equal(await readCount(`likes:${subject}`), likes + 1);
-			assert.equal(await readCount(`dislikes:${subject}`), dislikes + 1);
+			assert.deepEqual(await feedbackTotals(subject), {
+				likes: likes + 1,
+				dislikes: dislikes + 1,
+			});
 			for (const reaction of ["like", "dislike"]) {
 				const withdrawalId = crypto.randomUUID();
 				for (const identifier of [
@@ -287,8 +324,10 @@ suite("Website, storage, and PostgreSQL containers", { timeout: 30000 }, () => {
 					});
 				}
 			}
-			assert.equal(await readCount(`likes:${subject}`), likes);
-			assert.equal(await readCount(`dislikes:${subject}`), dislikes);
+			assert.deepEqual(await feedbackTotals(subject), {
+				likes,
+				dislikes,
+			});
 		});
 	}
 });

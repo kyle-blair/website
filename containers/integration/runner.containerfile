@@ -18,12 +18,12 @@ WORKDIR /workspace
 COPY --chown=runner:runner .dockerignore compose.yaml containerfile package.json package-lock.json next.config.ts tsconfig.json ./
 COPY --chown=runner:runner src ./src
 COPY --chown=runner:runner shared ./shared
-COPY --chown=runner:runner services/storage/containerfile services/storage/package.json services/storage/package-lock.json ./services/storage/
-COPY --chown=runner:runner services/storage/src ./services/storage/src
+COPY --chown=runner:runner database ./database
 COPY --chown=runner:runner test/integration ./test/integration
 COPY --chown=runner:runner containers/integration ./containers/integration
 COPY --chown=runner:runner scripts/integration-runner.sh ./scripts/integration-runner.sh
 COPY --chown=runner:runner scripts/health-check.mjs ./scripts/health-check.mjs
+COPY --chown=runner:runner scripts/migrate-database.mjs ./scripts/migrate-database.mjs
 ENV XDG_RUNTIME_DIR=/home/runner/.run \
     DOCKER_HOST=unix:///home/runner/.run/podman.sock \
     DOCKER_BUILDKIT=0 \

@@ -46,6 +46,16 @@ test("uses the documented Next.js integration in the Node.js runtime", async (co
 		(registrations[0] as { serviceName: string }).serviceName,
 		"website",
 	);
+	assert.deepEqual(
+		(
+			registrations[0] as {
+				instrumentations: { constructor: { name: string } }[];
+			}
+		).instrumentations.map(
+			(instrumentation) => instrumentation.constructor.name,
+		),
+		["UndiciInstrumentation", "PgInstrumentation"],
+	);
 	const error = new TypeError("render failed");
 	await onRequestError(error);
 	assert.deepEqual(failures, [{ operation: "website.render", error }]);

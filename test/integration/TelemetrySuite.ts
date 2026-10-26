@@ -7,7 +7,7 @@ import { once } from "node:events";
 import { setTimeout as delay } from "node:timers/promises";
 
 const service = process.env.TELEMETRY_TEST_SERVICE;
-assert.ok(service === "website" || service === "storage");
+assert.equal(service, "website");
 
 for (const scenario of [
 	"configured",
@@ -39,7 +39,6 @@ for (const scenario of [
 		endpoint.listen(0, "127.0.0.1");
 		await once(endpoint, "listening");
 		const environment = { ...process.env };
-		assert.ok(environment.STORAGE_SERVICE_TOKEN);
 		for (const key of Object.keys(environment))
 			if (key.startsWith("OTEL_")) delete environment[key];
 		const destination =
@@ -50,33 +49,19 @@ for (const scenario of [
 					: scenario === "invalid"
 						? "%invalid"
 						: `http://127.0.0.1:${(endpoint.address() as AddressInfo).port}/otlp`;
-		const child = spawn(
-			process.execPath,
-			service === "website"
-				? ["server.js"]
-				: [
-						"--import",
-						"./services/storage/src/instrumentation.ts",
-						"services/storage/src/server.ts",
-					],
-			{
-				env: {
-					...environment,
-					HOSTNAME: "127.0.0.1",
-					PORT: "10002",
-					STORAGE_SERVICE_URL: "http://127.0.0.1:65534",
-					STORAGE_ALLOW_HTTP: "true",
-					PGHOST: "127.0.0.1",
-					PGPORT: "1",
-					DATABASE_URL: "",
-					OTEL_EXPORTER_OTLP_ENDPOINT: destination,
-					OTEL_EXPORTER_OTLP_HEADERS:
-						"Authorization=Basic%20dGVzdDp0ZXN0",
-					OTEL_METRIC_EXPORT_INTERVAL: "100",
-				},
-				stdio: ["ignore", "pipe", "pipe"],
+		const child = spawn(process.execPath, ["server.js"], {
+			env: {
+				...environment,
+				HOSTNAME: "127.0.0.1",
+				PORT: "10002",
+				DATABASE_URL: "postgresql://website@127.0.0.1:1/website",
+				OTEL_EXPORTER_OTLP_ENDPOINT: destination,
+				OTEL_EXPORTER_OTLP_HEADERS:
+					"Authorization=Basic%20dGVzdDp0ZXN0",
+				OTEL_METRIC_EXPORT_INTERVAL: "100",
 			},
-		);
+			stdio: ["ignore", "pipe", "pipe"],
+		});
 		let output = "";
 		child.stdout.on("data", (chunk) => {
 			output += chunk;
@@ -85,8 +70,7 @@ for (const scenario of [
 			output += chunk;
 		});
 		const exited = once(child, "exit");
-		const healthPath =
-			service === "website" ? "/api/health" : "/health/live";
+		const healthPath = "/api/health";
 		const origin = "http://127.0.0.1:10002";
 		try {
 			let ready = false;
@@ -105,13 +89,9 @@ for (const scenario of [
 				await delay(100);
 			}
 			assert.ok(ready, `${service} ${scenario}: ${output}`);
-			const path =
-				service === "website"
-					? "/api/feedback?subject=telemetry-probe"
-					: "/v1/entries/telemetry-probe";
+			const path = "/api/feedback?subject=telemetry-probe";
 			const response = await fetch(origin + path, {
 				headers: {
-					authorization: `Bearer ${environment.STORAGE_SERVICE_TOKEN}`,
 					traceparent:
 						"00-0123456789abcdef0123456789abcdef-0123456789abcdef-01",
 				},
@@ -148,11 +128,6 @@ for (const scenario of [
 						"application/x-protobuf",
 					);
 					assert.ok(request.body.length > 0);
-					assert.ok(
-						!request.body.includes(
-							Buffer.from(environment.STORAGE_SERVICE_TOKEN!),
-						),
-					);
 				}
 				const traces = requests.filter(
 					(request) => request.path === "/otlp/v1/traces",
@@ -167,9 +142,7 @@ for (const scenario of [
 						),
 					),
 				);
-				for (const scope of service === "website"
-					? ["@opentelemetry/instrumentation-undici"]
-					: ["@fastify/otel", "@opentelemetry/instrumentation-pg"])
+				for (const scope of ["@opentelemetry/instrumentation-pg"])
 					assert.ok(
 						traces.some((request) =>
 							request.body.includes(Buffer.from(scope)),
@@ -210,11 +183,7 @@ for (const scenario of [
 					);
 				}),
 			]);
-			assert.deepEqual(
-				result,
-				[service === "website" ? 143 : 0, null],
-				output,
-			);
+			assert.deepEqual(result, [143, null], output);
 		} finally {
 			if (child.exitCode === null && child.signalCode === null) {
 				child.kill("SIGKILL");

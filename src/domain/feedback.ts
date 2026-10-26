@@ -1,4 +1,4 @@
-import type { PersistentStorage } from "./persistent-storage.ts";
+import type { CounterStore } from "./counter-store.ts";
 
 export type Reaction = "like" | "dislike";
 
@@ -39,18 +39,18 @@ export class FeedbackTotals {
 
 export class Feedback {
 	private readonly subject: string;
-	private readonly storage: PersistentStorage;
-	public constructor(subject: string, storage: PersistentStorage) {
+	private readonly counters: CounterStore;
+	public constructor(subject: string, counters: CounterStore) {
 		if (!Feedback.isValidSubject(subject))
 			throw new TypeError("Feedback requires a subject identifier.");
 		if (
-			!storage ||
-			typeof storage.read !== "function" ||
-			typeof storage.increment !== "function"
+			!counters ||
+			typeof counters.read !== "function" ||
+			typeof counters.adjust !== "function"
 		)
-			throw new TypeError("Feedback requires persistent storage.");
+			throw new TypeError("Feedback requires a counter store.");
 		this.subject = subject;
-		this.storage = storage;
+		this.counters = counters;
 	}
 	public static isValidSubject(subject: unknown): subject is string {
 		return (
@@ -62,12 +62,11 @@ export class Feedback {
 		);
 	}
 	public async read(): Promise<FeedbackTotals> {
-		const entries = await Promise.all([
-			this.storage.read(`likes:${this.subject}`),
-			this.storage.read(`dislikes:${this.subject}`),
+		const counts = await Promise.all([
+			this.counters.read(`likes:${this.subject}`),
+			this.counters.read(`dislikes:${this.subject}`),
 		]);
-		const counts = entries.map((entry) => (entry.found ? entry.value : 0));
-		return new FeedbackTotals(counts[0] as number, counts[1] as number);
+		return new FeedbackTotals(counts[0], counts[1]);
 	}
 	public async record(
 		reaction: Reaction,
@@ -79,7 +78,7 @@ export class Feedback {
 			typeof selected !== "boolean"
 		)
 			throw new TypeError("Invalid feedback reaction.");
-		await this.storage.increment(
+		await this.counters.adjust(
 			`${reaction === "like" ? "likes" : "dislikes"}:${this.subject}`,
 			operationId,
 			selected ? 1 : -1,

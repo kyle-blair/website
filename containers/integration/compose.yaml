@@ -6,17 +6,7 @@ services:
             OTEL_EXPORTER_OTLP_HEADERS: ""
         ports: !reset []
 
-    storage:
-        environment:
-            OTEL_METRIC_EXPORT_INTERVAL: "1000"
-            OTEL_EXPORTER_OTLP_ENDPOINT: http://127.0.0.1:1
-            OTEL_EXPORTER_OTLP_HEADERS: ""
-
     tests:
         build:
             context: .
             dockerfile: containers/integration/tests.containerfile
-        environment:
-            STORAGE_SERVICE_URL: http://storage:10000
-            STORAGE_SERVICE_TOKEN: ${STORAGE_SERVICE_TOKEN:?Set STORAGE_SERVICE_TOKEN}
-        networks: [storage]

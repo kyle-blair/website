@@ -22,7 +22,9 @@ ENV NODE_ENV=production \
     PORT=10000
 
 COPY --from=builder --chown=node:node /app/.next/standalone ./
+COPY --chown=node:node database/schema.sql ./database/schema.sql
 COPY --chown=node:node scripts/health-check.mjs ./scripts/health-check.mjs
+COPY --chown=node:node scripts/migrate-database.mjs ./scripts/migrate-database.mjs
 
 USER node
 EXPOSE 10000

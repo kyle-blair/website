@@ -1,53 +1,40 @@
 import assert from "node:assert/strict";
 import { suite, test } from "node:test";
-import { GET, POST } from "../src/app/api/feedback/route.ts";
+import { FeedbackEndpoint } from "../src/app/api/feedback/feedback-endpoint.ts";
 
 suite("Feedback routes", () => {
-	test("reads and records anonymous item feedback, rejecting invalid submissions before storage", async (context) => {
-		const originalFetch = globalThis.fetch;
-		const originalEnvironment = { ...process.env };
-		context.after(() => {
-			globalThis.fetch = originalFetch;
-			for (const key of [
-				"STORAGE_SERVICE_URL",
-				"STORAGE_SERVICE_TOKEN",
-				"STORAGE_ALLOW_HTTP",
-			]) {
-				if (originalEnvironment[key] === undefined)
-					delete process.env[key];
-				else process.env[key] = originalEnvironment[key];
-			}
-		});
-		process.env.STORAGE_SERVICE_URL = "https://storage.example";
-		process.env.STORAGE_SERVICE_TOKEN = "secret";
+	test("reads and records anonymous item feedback, rejecting invalid submissions before storage", async () => {
 		const counts = new Map<string, number>();
-		const operations = new Set<string>();
-		const requests: Request[] = [];
-		globalThis.fetch = async (input, options) => {
-			const request = new Request(input, options);
-			requests.push(request);
-			const key = decodeURIComponent(
-				new URL(request.url).pathname.split("/")[3],
-			);
-			if (request.method === "POST") {
-				const { operationId } = await request.json();
-				const amount = new URL(request.url).pathname.endsWith(
-					"/decrement",
-				)
-					? -1
-					: 1;
-				if (!operations.has(operationId)) {
-					counts.set(key, (counts.get(key) ?? 0) + amount);
-					operations.add(operationId);
+		const operations = new Map<
+			string,
+			{ key: string; amount: number; value: number }
+		>();
+		let calls = 0;
+		let unavailable = false;
+		const endpoint = new FeedbackEndpoint({
+			read: async (key) => {
+				calls += 1;
+				if (unavailable) throw new Error("Database unavailable");
+				return counts.get(key) ?? 0;
+			},
+			adjust: async (key, operationId, amount) => {
+				calls += 1;
+				if (unavailable) throw new Error("Database unavailable");
+				const normalized = operationId.toLowerCase();
+				const previous = operations.get(normalized);
+				if (previous) {
+					if (previous.key !== key || previous.amount !== amount)
+						throw new Error("Conflicting operation");
+					return previous.value;
 				}
-				return Response.json({ value: counts.get(key) });
-			}
-			return Response.json(
-				counts.has(key)
-					? { found: true, value: counts.get(key) }
-					: { found: false },
-			);
-		};
+				const value = (counts.get(key) ?? 0) + amount;
+				counts.set(key, value);
+				operations.set(normalized, { key, amount, value });
+				return value;
+			},
+		});
+		const GET = (request: Request) => endpoint.read(request);
+		const POST = (request: Request) => endpoint.record(request);
 		const subject = "item:example:first";
 		const get = (subject: string) =>
 			GET(
@@ -129,7 +116,7 @@ suite("Feedback routes", () => {
 			assert.deepEqual(await result.json(), { likes: 0, dislikes: 1 });
 			assert.equal(counts.get(`dislikes:${item}`), 1);
 		}
-		const before = requests.length;
+		const before = calls;
 		for (const invalid of [
 			null,
 			{},
@@ -185,10 +172,8 @@ suite("Feedback routes", () => {
 			).status,
 			413,
 		);
-		assert.equal(requests.length, before);
-		globalThis.fetch = async () => {
-			throw new Error("secret service failure");
-		};
+		assert.equal(calls, before);
+		unavailable = true;
 		assert.deepEqual(await (await get(subject)).json(), {
 			error: "Feedback unavailable",
 		});
@@ -196,18 +181,5 @@ suite("Feedback routes", () => {
 			(await post({ subject, reaction: "like", operationId })).status,
 			503,
 		);
-		delete process.env.STORAGE_SERVICE_URL;
-		delete process.env.STORAGE_SERVICE_TOKEN;
-		delete process.env.STORAGE_ALLOW_HTTP;
-		assert.equal((await get(subject)).status, 503);
-		assert.equal(
-			(await post({ subject, reaction: "like", operationId })).status,
-			503,
-		);
-		process.env.STORAGE_SERVICE_URL = "http://storage:10000";
-		process.env.STORAGE_SERVICE_TOKEN = "secret";
-		process.env.STORAGE_ALLOW_HTTP = "true";
-		globalThis.fetch = async () => Response.json({ found: false });
-		assert.equal((await get("/")).status, 200);
 	});
 });

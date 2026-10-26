@@ -2,14 +2,19 @@ import { parentPort } from "node:worker_threads";
 import { PageHitsEndpoint } from "../../src/app/api/page-hits/page-hits-endpoint.ts";
 
 const endpoint = new PageHitsEndpoint(
-	async () => {
-		throw new Error("Unexpected storage call");
+	{
+		read: async () => {
+			throw new Error("Unexpected counter read");
+		},
+		adjust: async () => {
+			throw new Error("Unexpected counter adjustment");
+		},
 	},
 	async () => false,
 );
 
 parentPort!.on("message", async (path: string) => {
-	const response = await endpoint.handle(
+	const response = await endpoint.record(
 		new Request("https://0.0.0.0:10000/api/page-hits", {
 			method: "POST",
 			headers: { "content-type": "application/json" },

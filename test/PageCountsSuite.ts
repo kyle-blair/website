@@ -1,35 +1,31 @@
 import assert from "node:assert/strict";
 import { suite, test } from "node:test";
-import { GET } from "../src/app/api/page-hits/route.ts";
+import { PageHitsEndpoint } from "../src/app/api/page-hits/page-hits-endpoint.ts";
+import { isPublishedPage } from "../src/app/published-pages.ts";
 
 suite("Reading page counts", () => {
-	test("reads each published ancestor without incrementing, distinguishes zero from unavailable, and contains invalid responses", async (context) => {
-		const previous = {
-			fetch: globalThis.fetch,
-			url: process.env.STORAGE_SERVICE_URL,
-			token: process.env.STORAGE_SERVICE_TOKEN,
-		};
-		context.after(() => {
-			globalThis.fetch = previous.fetch;
-			for (const [key, value] of [
-				["STORAGE_SERVICE_URL", previous.url],
-				["STORAGE_SERVICE_TOKEN", previous.token],
-			]) {
-				if (value === undefined) delete process.env[key!];
-				else process.env[key!] = value;
-			}
-		});
+	test("reads each published ancestor without incrementing, distinguishes zero from unavailable, and contains invalid responses", async () => {
 		const request = (path: string) =>
 			new Request(
 				`https://site.example/api/page-hits?path=${encodeURIComponent(path)}`,
 			);
-		process.env.STORAGE_SERVICE_URL = "https://storage.example";
-		process.env.STORAGE_SERVICE_TOKEN = "secret";
-		const calls: Request[] = [];
-		globalThis.fetch = async (input, options) => {
-			calls.push(new Request(input, options));
-			return Response.json({ found: true, value: 12 });
-		};
+		let calls = 0;
+		let storedValue: unknown = 12;
+		let unavailable = false;
+		const endpoint = new PageHitsEndpoint(
+			{
+				read: async () => {
+					calls += 1;
+					if (unavailable) throw new Error("Database unavailable");
+					return storedValue as number;
+				},
+				adjust: async () => {
+					throw new Error("A read must not adjust a counter.");
+				},
+			},
+			isPublishedPage,
+		);
+		const GET = (request: Request) => endpoint.read(request);
 		for (const path of [
 			"/",
 			"/blog",
@@ -44,7 +40,7 @@ suite("Reading page counts", () => {
 			);
 			assert.deepEqual(await response.json(), { count: 12 });
 		}
-		assert.ok(calls.every((call) => call.method === "GET"));
+		assert.equal(calls, 4);
 		for (const path of [
 			"/not-published",
 			"/?person=secret",
@@ -58,22 +54,16 @@ suite("Reading page counts", () => {
 				.status,
 			400,
 		);
-		assert.equal(calls.length, 4);
-		globalThis.fetch = async () => Response.json({ found: false });
+		assert.equal(calls, 4);
+		storedValue = 0;
 		assert.deepEqual(await (await GET(request("/"))).json(), { count: 0 });
 		for (const value of [-1, 1.5, "12", null]) {
-			globalThis.fetch = async () =>
-				Response.json({ found: true, value });
+			storedValue = value;
 			assert.equal((await GET(request("/"))).status, 503);
 		}
-		globalThis.fetch = async () => {
-			throw new Error("secret connection details");
-		};
+		unavailable = true;
 		assert.deepEqual(await (await GET(request("/"))).json(), {
 			error: "Page count unavailable",
 		});
-		delete process.env.STORAGE_SERVICE_URL;
-		delete process.env.STORAGE_SERVICE_TOKEN;
-		assert.equal((await GET(request("/"))).status, 503);
 	});
 });

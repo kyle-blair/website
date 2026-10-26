@@ -20,9 +20,3 @@ jobs:
         uses: ./.github/workflows/deploy.yaml
         secrets:
             deploy_url: ${{ secrets.TELEMETRY_DEPLOY_HOOK_URL }}
-
-    deploy-storage:
-        needs: test
-        uses: ./.github/workflows/deploy.yaml
-        secrets:
-            deploy_url: ${{ secrets.STORAGE_DEPLOY_HOOK_URL }}

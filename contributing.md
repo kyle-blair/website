@@ -92,9 +92,9 @@ Here are some examples:
 
 ## tests
 
-Run `npm test` for the website, storage, and integration suites. Use `npm run test:unit`,
-`npm run test:storage`, or `npm run test:integration` to run one group. Integration tests
-run the services inside a disposable container and cache build layers by default;
+Run `npm test` for the unit, component, and integration suites. Use `npm run test:unit`
+or `npm run test:integration` to run one group. Integration tests run the website and
+PostgreSQL inside a disposable container and cache build layers by default;
 `npm run test:no-cache` uses fresh inner container storage. Run `npm run lint`,
 `npm run typecheck`, and `npm run format:verify` before submitting changes.
 

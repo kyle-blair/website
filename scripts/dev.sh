@@ -26,15 +26,26 @@ start_website() {
     fi
     return "$exit_status"
 }
+
 start_without_services() {
     printf 'Starting the website without backing services. Page counts and feedback will be unavailable.\n'
     start_website "$@"
     exit 0
 }
+
 if [[ "${1:-}" == --without-services ]]; then
     shift
     start_without_services "$@"
 fi
+
+if [[ -n "${DATABASE_URL:-}" ]]; then
+    if ! npm run database:migrate; then
+        printf 'Persistent counters are unavailable because the database schema could not be applied. Review the migration error, correct the database configuration, and retry npm run dev.\n' >&2
+    fi
+    start_website "$@"
+    exit 0
+fi
+
 if command -v docker >/dev/null 2>&1; then
     container_engine=docker
 elif command -v podman >/dev/null 2>&1; then
@@ -56,44 +67,45 @@ if ! "$container_engine" info >/dev/null; then
     start_without_services "$@"
 fi
 if ! command -v openssl >/dev/null 2>&1; then
-    printf 'Missing openssl for local service credentials. Install OpenSSL and make it available on PATH, then retry npm run dev.\n' >&2
+    printf 'Missing OpenSSL for the local database credential. Install OpenSSL and make it available on PATH, then retry npm run dev.\n' >&2
     start_without_services "$@"
 fi
 
 compose() {
     "$container_engine" compose "$@"
 }
+
 export COMPOSE_FILE=compose.yaml:development/compose.yaml
-printf 'Preparing local service credentials in .env with owner-only file permissions.\n'
+printf 'Preparing the local database credential in .env with owner-only file permissions.\n'
 umask 077
 touch .env
 chmod 600 .env
-for credential in STORAGE_SERVICE_TOKEN POSTGRES_PASSWORD; do
-    if [[ -n "${!credential:-}" ]] || grep -q "^${credential}=" .env; then
-        printf 'Reusing %s from the environment or .env.\n' "$credential"
-    else
-        generated_secret=$(openssl rand -hex 32)
-        printf '\n%s=%s\n' "$credential" "$generated_secret" >> .env
-        printf 'Generated and saved a random %s for subsequent sessions.\n' "$credential"
-    fi
-done
-STORAGE_SERVICE_TOKEN=$(node --env-file=.env --print 'process.env.STORAGE_SERVICE_TOKEN')
-export STORAGE_SERVICE_TOKEN
-export STORAGE_SERVICE_URL=http://127.0.0.1:10001 STORAGE_ALLOW_HTTP=true
+if [[ -n "${POSTGRES_PASSWORD:-}" ]] || grep -q '^POSTGRES_PASSWORD=' .env; then
+    printf 'Reusing POSTGRES_PASSWORD from the environment or .env.\n'
+else
+    generated_secret=$(openssl rand -hex 32)
+    printf '\nPOSTGRES_PASSWORD=%s\n' "$generated_secret" >> .env
+    printf 'Generated and saved a random POSTGRES_PASSWORD for subsequent sessions.\n'
+fi
+POSTGRES_PASSWORD=$(node --env-file=.env --print 'process.env.POSTGRES_PASSWORD')
+export POSTGRES_PASSWORD
+database_port=${DATABASE_PORT:-54320}
+export DATABASE_URL
+DATABASE_URL=$(node --print 'const url = new URL("postgresql://storage_service@127.0.0.1/website"); url.port = process.env.DATABASE_PORT || "54320"; url.password = process.env.POSTGRES_PASSWORD; url.toString()')
 
-report_service_failure() {
-    printf 'Could not start local services: %s. Review the error or container status above.\n' "$*" >&2
+report_database_failure() {
+    printf 'Persistent counters are unavailable because the local database could not start. Review the error or container status above.\n' >&2
     printf 'Inspect container status: %s compose --file compose.yaml --file development/compose.yaml ps\n' "$container_engine" >&2
-    printf 'Inspect their logs: %s compose --file compose.yaml --file development/compose.yaml logs --tail 50 %s\n' "$container_engine" "$*" >&2
-    printf 'Correct the reported problem, then stop this development session and retry npm run dev. For an occupied port, stop the conflicting process or container first.\n' >&2
+    printf 'Inspect database logs: %s compose --file compose.yaml --file development/compose.yaml logs --tail 50 database\n' "$container_engine" >&2
+    printf 'Correct the reported problem, then stop this development session and retry npm run dev.\n' >&2
 }
 
 service_container() {
-    local service=$1 identifiers identifier container_service
+    local identifiers identifier container_service
     identifiers=$(compose ps --quiet) || return 1
     for identifier in $identifiers; do
         container_service=$("$container_engine" inspect --format '{{index .Config.Labels "com.docker.compose.service"}}' "$identifier") || return 1
-        if [[ "$container_service" == "$service" ]]; then
+        if [[ "$container_service" == database ]]; then
             printf '%s\n' "$identifier"
             return 0
         fi
@@ -101,71 +113,50 @@ service_container() {
     return 1
 }
 
-wait_for_service() {
-    local service=$1 identifier state container_status health_status attempt
-    if ! identifier=$(service_container "$service") || [[ -z "$identifier" ]]; then
-        printf 'No container could be found for %s.\n' "$service" >&2
+wait_for_database() {
+    local identifier state container_status health_status attempt
+    if ! identifier=$(service_container) || [[ -z "$identifier" ]]; then
+        printf 'No container could be found for database.\n' >&2
         return 1
     fi
     for ((attempt=0; attempt<60; attempt++)); do
         if ! state=$("$container_engine" inspect --format '{{.State.Status}} {{if .State.Health}}{{.State.Health.Status}}{{end}}' "$identifier"); then
-            printf 'Could not inspect the %s container.\n' "$service" >&2
+            printf 'Could not inspect the database container.\n' >&2
             return 1
         fi
         read -r container_status health_status <<< "$state"
-        if [[ "$container_status" == running && -z "$health_status" ]]; then
-            printf '%s has no container health check; refusing to report it as ready.\n' "$service" >&2
-            return 1
-        fi
         if [[ "$container_status" == running && "$health_status" == healthy ]]; then
-            if [[ "$service" == storage ]] && ! "$container_engine" exec "$identifier" node scripts/health-check.mjs http://127.0.0.1:10000/health/ready; then
-                printf 'Storage cannot use PostgreSQL. Check database logs for authentication or schema errors. Existing database volumes retain their original accounts and passwords; restore matching credentials or migrate the database account.\n' >&2
-                return 1
-            fi
-            printf 'Local service %s is running%s.\n' "$service" "${health_status:+ and healthy}"
+            printf 'Local database is running and healthy.\n'
             return 0
         fi
+        if [[ "$container_status" == running && -z "$health_status" ]]; then
+            printf 'Database has no container health check; refusing to report it as ready.\n' >&2
+            return 1
+        fi
         if [[ "$container_status" == restarting || "$container_status" == exited || "$container_status" == dead || "$health_status" == unhealthy ]]; then
-            printf '%s: %s\n' "$service" "$state" >&2
+            printf 'database: %s\n' "$state" >&2
             return 1
         fi
         sleep 1
     done
-    printf '%s did not become ready after 60 checks, one second apart. Last container status: %s\n' "$service" "$state" >&2
+    printf 'Database did not become ready after 60 checks, one second apart. Last container status: %s\n' "$state" >&2
     return 1
 }
 
-start_services() {
-    local service failed=0
-    printf 'Building and starting local services: %s.\n' "$*"
-    if ! compose up --detach --build --force-recreate --remove-orphans "$@"; then
-        report_service_failure "$@"
-        return 1
-    fi
-    for service in "$@"; do
-        if ! wait_for_service "$service"; then
-            if [[ "$service" == storage ]]; then
-                report_service_failure database storage
-            else
-                report_service_failure "$service"
-            fi
-            failed=1
-        fi
-    done
-    return "$failed"
-}
-
-
 cleanup() {
-    printf 'Stopping local services; retaining the database volume and saved credentials.\n'
-    if ! compose stop storage database; then
-        printf 'Local service cleanup failed. Stop remaining containers with: %s compose --file compose.yaml --file development/compose.yaml stop storage database\n' "$container_engine" >&2
+    printf 'Stopping the local database; retaining its volume and saved credential.\n'
+    if ! compose stop database; then
+        printf 'Local database cleanup failed. Stop it with: %s compose --file compose.yaml --file development/compose.yaml stop database\n' "$container_engine" >&2
     fi
 }
 trap cleanup EXIT
 trap 'exit 130' INT
 trap 'exit 143' TERM
-if ! start_services database storage; then
-    printf 'Local services are unavailable; retaining the database volume and saved credentials. Review the errors above and retry npm run dev after correcting the problem. The website will continue with unavailable features.\n' >&2
+
+if ! compose up --detach --build --force-recreate --remove-orphans database || ! wait_for_database; then
+    report_database_failure
+elif ! npm run database:migrate; then
+    printf 'Persistent counters are unavailable because the database schema could not be applied. Review the migration error, correct the database configuration, and retry npm run dev.\n' >&2
 fi
+
 start_website "$@"

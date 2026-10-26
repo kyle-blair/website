@@ -2,144 +2,20 @@ import assert from "node:assert/strict";
 import { suite, test } from "node:test";
 import { once } from "node:events";
 import { Worker } from "node:worker_threads";
-import { HttpsStorage } from "../src/infrastructure/https-storage.ts";
 import { PageHitsEndpoint } from "../src/app/api/page-hits/page-hits-endpoint.ts";
-
-suite("HTTPS persistent storage", () => {
-	test("sends negative counter adjustments for withdrawn reactions", async () => {
-		const operationId = crypto.randomUUID();
-		const store = new HttpsStorage(
-			"https://storage.example",
-			"secret",
-			async (input, options) => {
-				assert.equal(
-					String(input),
-					"https://storage.example/v1/entries/likes%3Aitem/decrement",
-				);
-				assert.deepEqual(JSON.parse(String(options?.body)), {
-					operationId,
-				});
-				return Response.json({ value: 0 });
-			},
-		);
-		assert.equal(await store.increment("likes:item", operationId, -1), 0);
-	});
-	test("does not fall back to incrementing when an older service cannot withdraw counts", async () => {
-		const paths: string[] = [];
-		const store = new HttpsStorage(
-			"https://storage.example",
-			"secret",
-			async (input) => {
-				paths.push(new URL(input as URL).pathname);
-				return new Response(null, { status: 404 });
-			},
-		);
-		await assert.rejects(
-			store.increment("likes:item", crypto.randomUUID(), -1),
-			/Storage service unavailable/,
-		);
-		assert.deepEqual(paths, ["/v1/entries/likes%3Aitem/decrement"]);
-		for (const amount of [0, 2, -2, 0.5, NaN])
-			await assert.rejects(
-				store.increment("likes:item", crypto.randomUUID(), amount),
-				TypeError,
-			);
-		assert.equal(paths.length, 1);
-	});
-	test("uses authenticated, uncached requests without visitor headers", async () => {
-		const requests: Request[] = [];
-		const store = new HttpsStorage(
-			"https://storage.example",
-			"secret",
-			async (input, options) => {
-				requests.push(new Request(input, options));
-				return Response.json({ value: 42 });
-			},
-		);
-		assert.equal(
-			await store.increment(
-				"hits:page:/",
-				"42c26729-670f-4c77-b218-dfb0820ad912",
-			),
-			42,
-		);
-		assert.equal(
-			requests[0].url,
-			"https://storage.example/v1/entries/hits%3Apage%3A%2F/increment",
-		);
-		assert.equal(requests[0].headers.get("authorization"), "Bearer secret");
-		assert.equal(requests[0].headers.get("x-forwarded-for"), null);
-		assert.equal(requests[0].cache, "no-store");
-	});
-
-	test("reads persisted and missing entries without mutating storage", async () => {
-		const replies = [
-			Response.json({ found: true, value: 12 }),
-			Response.json({ found: false }),
-		];
-		const methods: string[] = [];
-		const store = new HttpsStorage(
-			"https://storage.example/",
-			"secret",
-			async (_input, options) => {
-				methods.push(options!.method!);
-				return replies.shift()!;
-			},
-		);
-		assert.deepEqual(await store.read("hits"), { found: true, value: 12 });
-		assert.deepEqual(await store.read("missing"), { found: false });
-		assert.deepEqual(methods, ["GET", "GET"]);
-	});
-
-	test("allows HTTP only with explicit local-development configuration", () => {
-		assert.ok(
-			new HttpsStorage("http://storage:10000", "secret", fetch, true),
-		);
-	});
-
-	test("rejects malformed read responses", async () => {
-		for (const entry of [null, 1, {}, { found: true }, { found: "yes" }]) {
-			const store = new HttpsStorage(
-				"https://storage.example",
-				"secret",
-				async () => Response.json(entry),
-			);
-			await assert.rejects(store.read("setting"));
-		}
-	});
-
-	test("rejects insecure configuration and invalid service replies", async () => {
-		for (const address of [
-			"http://storage.example",
-			"ftp://storage.example",
-			"https://user:password@storage.example",
-			"https://storage.example/?token=secret",
-		]) {
-			assert.throws(() => new HttpsStorage(address, "secret"));
-		}
-		assert.throws(() => new HttpsStorage("https://storage.example", ""));
-		for (const response of [
-			new Response(null, { status: 503 }),
-			Response.json({ value: "42" }),
-			Response.json({ value: -1 }),
-			Response.json({ value: 1.5 }),
-		]) {
-			const store = new HttpsStorage(
-				"https://storage.example",
-				"secret",
-				async () => response,
-			);
-			await assert.rejects(store.increment("hits", "operation"));
-		}
-	});
-});
 
 suite("Page hit endpoint", () => {
 	function createEndpoint(
 		increment: (key: string, operationId: string) => Promise<number>,
 		isPublishedPage: (path: string) => Promise<boolean>,
 	) {
-		return new PageHitsEndpoint(increment, isPublishedPage);
+		return new PageHitsEndpoint(
+			{
+				read: async () => 0,
+				adjust: (key, operationId) => increment(key, operationId),
+			},
+			isPublishedPage,
+		);
 	}
 
 	for (const publicOrigin of [
@@ -152,7 +28,7 @@ suite("Page hit endpoint", () => {
 				async () => true,
 			);
 			for (const metadata of [true, false]) {
-				const response = await endpoint.handle(
+				const response = await endpoint.record(
 					new Request("http://0.0.0.0:10000/api/page-hits", {
 						method: "POST",
 						headers: {
@@ -178,19 +54,19 @@ suite("Page hit endpoint", () => {
 	test("rejects requests from other browser origins even when origin metadata is forged", async () => {
 		const endpoint = createEndpoint(
 			async () => {
-				assert.fail("Must not reach storage");
+				assert.fail("Must not reach the counter store");
 			},
 			async () => true,
 		);
 		for (const site of ["cross-site", "same-site", "none", "unknown"]) {
 			const incoming = request({ path: "/", operationId });
 			incoming.headers.set("sec-fetch-site", site);
-			assert.equal((await endpoint.handle(incoming)).status, 403);
+			assert.equal((await endpoint.record(incoming)).status, 403);
 		}
 		for (const origin of ["null", "invalid", "ftp://website.example"]) {
 			assert.equal(
 				(
-					await endpoint.handle(
+					await endpoint.record(
 						request({ path: "/", operationId }, origin),
 					)
 				).status,
@@ -213,17 +89,17 @@ suite("Page hit endpoint", () => {
 			const incoming = request({ path: "/", operationId });
 			if (contentType === null) incoming.headers.delete("content-type");
 			else incoming.headers.set("content-type", contentType);
-			assert.equal((await endpoint.handle(incoming)).status, 415);
+			assert.equal((await endpoint.record(incoming)).status, 415);
 		}
 		const incoming = request({ path: "/", operationId });
 		incoming.headers.set("content-type", "application/json; charset=utf-8");
-		assert.equal((await endpoint.handle(incoming)).status, 200);
+		assert.equal((await endpoint.record(incoming)).status, 200);
 	});
 
 	test("rejects the internal origin and forged forwarding headers", async () => {
 		const endpoint = createEndpoint(
 			async () => {
-				assert.fail("Must not reach storage");
+				assert.fail("Must not reach the counter store");
 			},
 			async () => true,
 		);
@@ -231,7 +107,7 @@ suite("Page hit endpoint", () => {
 			"https://0.0.0.0:10000",
 			"https://attacker.example",
 		]) {
-			const response = await endpoint.handle(
+			const response = await endpoint.record(
 				new Request("https://0.0.0.0:10000/api/page-hits", {
 					method: "POST",
 					headers: {
@@ -251,7 +127,7 @@ suite("Page hit endpoint", () => {
 		}
 	});
 
-	test("accepts the request byte boundary and rejects larger JSON before consulting storage", async () => {
+	test("accepts the request byte boundary and rejects larger JSON before consulting the counter store", async () => {
 		let calls = 0;
 		const endpoint = createEndpoint(
 			async () => {
@@ -268,7 +144,7 @@ suite("Page hit endpoint", () => {
 				padding: "x".repeat(size - empty.length),
 			});
 			assert.equal(incoming.headers.get("content-length"), null);
-			const response = await endpoint.handle(incoming);
+			const response = await endpoint.record(incoming);
 			assert.equal(response.status, size === 8192 ? 200 : 413);
 			assert.equal(
 				response.headers.get("cache-control"),
@@ -276,7 +152,7 @@ suite("Page hit endpoint", () => {
 			);
 		}
 		assert.equal(calls, 1);
-		const response = await endpoint.handle(
+		const response = await endpoint.record(
 			request({ path: "/", operationId, padding: "文".repeat(3000) }),
 		);
 		assert.equal(response.status, 413);
@@ -290,7 +166,9 @@ suite("Page hit endpoint", () => {
 		test(`stops reading oversized streams when cancellation ${cancellationFails ? "fails" : "succeeds"}`, async () => {
 			const endpoint = createEndpoint(
 				async () => {
-					assert.fail("Oversized requests must not reach storage");
+					assert.fail(
+						"Oversized requests must not reach the counter store",
+					);
 				},
 				async () => {
 					assert.fail(
@@ -335,7 +213,7 @@ suite("Page hit endpoint", () => {
 				body,
 				duplex: "half",
 			};
-			const response = await endpoint.handle(
+			const response = await endpoint.record(
 				new Request("https://website.example/api/page-hits", options),
 			);
 			assert.equal(response.status, 413);
@@ -369,7 +247,7 @@ suite("Page hit endpoint", () => {
 		};
 		assert.equal(
 			(
-				await endpoint.handle(
+				await endpoint.record(
 					new Request(
 						"https://website.example/api/page-hits",
 						options,
@@ -384,7 +262,7 @@ suite("Page hit endpoint", () => {
 	test("contains missing and interrupted request bodies", async () => {
 		const endpoint = createEndpoint(
 			async () => {
-				assert.fail("Invalid bodies must not reach storage");
+				assert.fail("Invalid bodies must not reach the counter store");
 			},
 			async () => true,
 		);
@@ -392,7 +270,7 @@ suite("Page hit endpoint", () => {
 			method: "POST",
 			headers: { "content-type": "application/json" },
 		});
-		assert.equal((await endpoint.handle(missing)).status, 400);
+		assert.equal((await endpoint.record(missing)).status, 400);
 		const body = new ReadableStream<Uint8Array>({
 			pull(controller) {
 				controller.error(new Error("Connection lost"));
@@ -406,7 +284,7 @@ suite("Page hit endpoint", () => {
 		};
 		assert.equal(
 			(
-				await endpoint.handle(
+				await endpoint.record(
 					new Request(
 						"https://website.example/api/page-hits",
 						options,
@@ -421,7 +299,7 @@ suite("Page hit endpoint", () => {
 	test("rejects oversized encoded and decoded paths before consulting the catalogue", async () => {
 		const endpoint = createEndpoint(
 			async () => {
-				assert.fail("Must not reach storage");
+				assert.fail("Must not reach the counter store");
 			},
 			async () => {
 				assert.fail("Oversized paths must not reach the catalogue");
@@ -429,7 +307,7 @@ suite("Page hit endpoint", () => {
 		);
 		for (const path of ["/" + "a".repeat(4096), "/" + "%61".repeat(501)]) {
 			assert.equal(
-				(await endpoint.handle(request({ path, operationId }))).status,
+				(await endpoint.record(request({ path, operationId }))).status,
 				400,
 			);
 		}
@@ -468,7 +346,7 @@ suite("Page hit endpoint", () => {
 			},
 			async (path) => path === "/blog",
 		);
-		const response = await endpoint.handle(
+		const response = await endpoint.record(
 			request({ path: "/blog", operationId }),
 		);
 		assert.equal(response.status, 200);
@@ -480,10 +358,10 @@ suite("Page hit endpoint", () => {
 		assert.deepEqual(calls, [["hits:page:/blog", operationId]]);
 	});
 
-	test("rejects arbitrary paths, malformed submissions, and cross-site requests before storage", async () => {
+	test("rejects arbitrary paths, malformed submissions, and cross-site requests before the counter store", async () => {
 		const endpoint = createEndpoint(
 			async () => {
-				assert.fail("Must not reach storage");
+				assert.fail("Must not reach the counter store");
 			},
 			async () => false,
 		);
@@ -495,11 +373,11 @@ suite("Page hit endpoint", () => {
 			{ path: "/missing", operationId },
 			{ path: "/%", operationId },
 		]) {
-			assert.equal((await endpoint.handle(request(body))).status, 400);
+			assert.equal((await endpoint.record(request(body))).status, 400);
 		}
 		assert.equal(
 			(
-				await endpoint.handle(
+				await endpoint.record(
 					request(
 						{ path: "/", operationId },
 						"https://other.example",
@@ -510,7 +388,7 @@ suite("Page hit endpoint", () => {
 		);
 		assert.equal(
 			(
-				await endpoint.handle(
+				await endpoint.record(
 					new Request("https://website.example/api/page-hits", {
 						method: "POST",
 						headers: { "content-type": "application/json" },
@@ -532,7 +410,7 @@ suite("Page hit endpoint", () => {
 		);
 		assert.equal(
 			(
-				await endpoint.handle(
+				await endpoint.record(
 					request({ path: "/blog/%E6%96%87", operationId }),
 				)
 			).status,
@@ -548,19 +426,19 @@ suite("Page hit endpoint", () => {
 			},
 		);
 		assert.equal(
-			(await endpoint.handle(request({ path: "/", operationId }))).status,
+			(await endpoint.record(request({ path: "/", operationId }))).status,
 			503,
 		);
 	});
 
-	test("contains storage failures and never exposes errors or visitor details", async () => {
+	test("contains counter-store failures and never exposes errors or visitor details", async () => {
 		const endpoint = createEndpoint(
 			async () => {
 				throw new Error("secret database credentials");
 			},
 			async () => true,
 		);
-		const response = await endpoint.handle(
+		const response = await endpoint.record(
 			request({ path: "/", operationId }),
 		);
 		assert.equal(response.status, 503);

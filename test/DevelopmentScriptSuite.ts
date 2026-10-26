@@ -34,7 +34,6 @@ suite("Development startup", () => {
 			"touch",
 			"chmod",
 			"grep",
-			"sed",
 			"openssl",
 		]) {
 			const location = spawnSync(
@@ -53,33 +52,15 @@ printf '%s\\n' "$*" >> "$DEVELOPMENT_COMMAND_LOG"
 case "$*" in
     "compose version") exit "${"${PROVIDER_EXIT_STATUS:-0}"}" ;;
     "info") exit "${"${ENGINE_EXIT_STATUS:-0}"}" ;;
-    "compose stop storage database") exit "${"${CLEANUP_EXIT_STATUS:-0}"}" ;;
-    "exec storage "*) exit "${"${STORAGE_READINESS_EXIT_STATUS:-0}"}" ;;
-    "compose ps --quiet")
-        for service in database storage website; do
-            if [[ "$service" != "${"${MISSING_SERVICE:-}"}" ]]; then printf '%s\\n' "$service"; fi
-        done
-        ;;
-    'inspect --format {{index .Config.Labels "com.docker.compose.service"}} '*) printf '%s\\n' "${"${!#}"}" ;;
-    inspect*)
-        if [[ "${"${!#}"}" == "${"${INSPECTION_FAILURE_SERVICE:-}"}" ]]; then exit 1; fi
-        case "${"${!#}"}" in
-            database) printf '%s\\n' "${"${DATABASE_STATE:-running healthy}"}" ;;
-            storage) printf '%s\\n' "${"${STORAGE_STATE:-running healthy}"}" ;;
-            *) exit 2 ;;
-        esac
-        ;;
-    "compose up --detach --build --force-recreate --remove-orphans --wait storage"|"compose up --detach --build --force-recreate --remove-orphans storage"|"compose up --detach --build --force-recreate --remove-orphans database storage")
-        if [[ "$*" == *"--wait"* && "${"${WAIT_FOR_SERVICES_NOT_BEING_STARTED:-false}"}" == true ]]; then
-            printf 'Still waiting for website containers that were not started\\n' >&2
-            exit 124
-        fi
-        [[ "$STORAGE_SERVICE_TOKEN" == "$EXPECTED_STORAGE_SERVICE_TOKEN" ]] || exit 12
+    "compose stop database") exit "${"${CLEANUP_EXIT_STATUS:-0}"}" ;;
+    "compose ps --quiet") printf 'database\\n' ;;
+    'inspect --format {{index .Config.Labels "com.docker.compose.service"}} database') printf 'database\\n' ;;
+    'inspect --format {{.State.Status}} {{if .State.Health}}{{.State.Health.Status}}{{end}} database') printf '%s\\n' "${"${DATABASE_STATE:-running healthy}"}" ;;
+    "compose up --detach --build --force-recreate --remove-orphans database")
         if [[ "${"${SERVICE_EXIT_STATUS:-0}"}" != 0 ]]; then
-            printf 'storage port is already allocated\\n' >&2
+            printf 'database port is already allocated\\n' >&2
             exit "$SERVICE_EXIT_STATUS"
         fi
-        printf 'storage ready\\n'
         ;;
     *) printf 'Unsupported provider command: %s\\n' "$*" >&2; exit 2 ;;
 esac
@@ -88,36 +69,40 @@ esac
 		writeFileSync(
 			join(commands, "npm"),
 			`#!/bin/bash
-[[ "$*" == "exec -- next dev --port 4321" ]] || exit 13
-if [[ "${"${EXPECT_SERVICES:-true}"}" == true ]]; then
-[[ "$STORAGE_SERVICE_TOKEN" == "$EXPECTED_STORAGE_SERVICE_TOKEN" ]] || exit 14
-[[ "$STORAGE_SERVICE_URL" == "http://127.0.0.1:10001" && "$STORAGE_ALLOW_HTTP" == true ]] || exit 15
-fi
-printf 'website started\\n'
-exit "${"${WEBSITE_EXIT_STATUS:-0}"}"
+printf 'npm %s\\n' "$*" >> "$DEVELOPMENT_COMMAND_LOG"
+case "$*" in
+    "run database:migrate")
+        [[ "$DATABASE_URL" == "postgresql://storage_service:saved-password@127.0.0.1:54320/website" ]] || exit 12
+        exit "${"${MIGRATION_EXIT_STATUS:-0}"}"
+        ;;
+    "exec -- next dev --port 4321")
+        printf 'website started\\n'
+        exit "${"${WEBSITE_EXIT_STATUS:-0}"}"
+        ;;
+    *) exit 13 ;;
+esac
 `,
 		);
 		writeFileSync(join(commands, "sleep"), "#!/bin/bash\nexit 0\n");
 		for (const command of ["podman", "npm", "sleep"])
 			chmodSync(join(commands, command), 0o755);
+
 		function run(
-			token: string,
 			overrides: Record<string, string> = {},
-			websiteArguments: string[] = ["--port", "4321"],
+			args = ["--port", "4321"],
 		) {
 			const environment = { ...process.env };
-			delete environment.STORAGE_SERVICE_TOKEN;
+			delete environment.DATABASE_URL;
 			delete environment.POSTGRES_PASSWORD;
 			return spawnSync(
 				"/bin/bash",
-				[join(directory, "scripts/dev.sh"), ...websiteArguments],
+				[join(directory, "scripts/dev.sh"), ...args],
 				{
 					encoding: "utf8",
 					timeout: 10000,
 					env: {
 						...environment,
 						PATH: commands,
-						EXPECTED_STORAGE_SERVICE_TOKEN: token,
 						DEVELOPMENT_COMMAND_LOG: join(
 							directory,
 							"commands.log",
@@ -130,288 +115,74 @@ exit "${"${WEBSITE_EXIT_STATUS:-0}"}"
 		return { directory, run };
 	}
 
-	test("starts with a provider without config --environment and preserves quoted credentials", (context) => {
-		const { directory, run } = fixture(context);
-		const credentials =
-			'STORAGE_SERVICE_TOKEN="saved-token"\nPOSTGRES_PASSWORD=saved-password\n';
-		writeFileSync(join(directory, ".env"), credentials);
-		const result = run("saved-token");
-		assert.equal(result.status, 0, result.stdout + result.stderr);
-		assert.match(result.stdout, /storage ready/);
-		assert.match(result.stdout, /website started/);
-		assert.match(result.stdout, /Stopping local services/);
-		assert.doesNotMatch(
-			result.stdout + result.stderr,
-			/saved-token|saved-password/,
-		);
-		assert.equal(
-			readFileSync(join(directory, ".env"), "utf8"),
-			credentials,
-		);
-		assert.equal(statSync(join(directory, ".env")).mode & 0o777, 0o600);
-	});
-
-	test("starts the website without waiting for containers that were not started", (context) => {
-		const { run } = fixture(context);
-		const result = run("test-token", {
-			STORAGE_SERVICE_TOKEN: "test-token",
-			WAIT_FOR_SERVICES_NOT_BEING_STARTED: "true",
-		});
-		assert.equal(result.status, 0, result.stdout + result.stderr);
-		assert.match(result.stdout, /storage ready/);
-		assert.match(result.stdout, /website started/);
-		assert.doesNotMatch(result.stdout, /without backing services/);
-		assert.doesNotMatch(result.stderr, /containers that were not started/);
-	});
-
-	test("gives environment credentials precedence and preserves the website exit status", (context) => {
+	test("starts PostgreSQL, applies the schema, and starts the website", (context) => {
 		const { directory, run } = fixture(context);
 		writeFileSync(
 			join(directory, ".env"),
-			"STORAGE_SERVICE_TOKEN=saved-token\nPOSTGRES_PASSWORD=saved-password\n",
+			"POSTGRES_PASSWORD=saved-password\n",
 		);
-		const result = run("environment-token", {
-			STORAGE_SERVICE_TOKEN: "environment-token",
-			WEBSITE_EXIT_STATUS: "9",
-		});
-		assert.equal(result.status, 9, result.stdout + result.stderr);
-		assert.match(result.stdout, /Stopping local services/);
-		assert.doesNotMatch(
-			result.stdout + result.stderr,
-			/environment-token|saved-token|saved-password/,
-		);
-	});
-
-	test("starts the website when the container provider is unavailable", (context) => {
-		const { run } = fixture(context);
-		const result = run("", {
-			PROVIDER_EXIT_STATUS: "1",
-			EXPECT_SERVICES: "false",
-		});
+		const result = run();
 		assert.equal(result.status, 0, result.stdout + result.stderr);
+		assert.match(result.stdout, /database.*healthy/i);
 		assert.match(result.stdout, /website started/);
-		assert.match(result.stdout + result.stderr, /without backing services/);
+		assert.match(result.stdout, /Stopping the local database/);
+		assert.doesNotMatch(result.stdout + result.stderr, /saved-password/);
+		const commands = readFileSync(join(directory, "commands.log"), "utf8");
+		assert.match(commands, /compose up .* database/);
+		assert.match(commands, /npm run database:migrate/);
+		assert.match(commands, /compose stop database/);
+		assert.equal(statSync(join(directory, ".env")).mode & 0o777, 0o600);
 	});
 
-	test("starts without containers when explicitly requested", (context) => {
+	test("starts without persistence when explicitly requested", (context) => {
 		const { run } = fixture(context);
-		const result = run("", { EXPECT_SERVICES: "false" }, [
-			"--without-services",
-			"--port",
-			"4321",
-		]);
+		const result = run({}, ["--without-services", "--port", "4321"]);
 		assert.equal(result.status, 0, result.stdout + result.stderr);
 		assert.match(result.stdout, /without backing services/);
 	});
 
-	test("starts the website even when local services and their cleanup fail", (context) => {
-		const { run } = fixture(context);
-		const result = run("test-token", {
-			STORAGE_SERVICE_TOKEN: "test-token",
-			SERVICE_EXIT_STATUS: "1",
-			CLEANUP_EXIT_STATUS: "1",
-		});
-		assert.equal(result.status, 0, result.stdout + result.stderr);
-		assert.match(result.stdout, /website started/);
-	});
-
-	test("explains how to diagnose and retry backing service failures", (context) => {
-		const { run } = fixture(context);
-		const result = run("test-token", {
-			STORAGE_SERVICE_TOKEN: "test-token",
-			SERVICE_EXIT_STATUS: "1",
-		});
-		assert.equal(result.status, 0, result.stdout + result.stderr);
-		assert.match(result.stdout, /website started/);
-		assert.match(result.stderr, /storage port is already allocated/);
-		assert.match(
-			result.stderr,
-			/Could not start local services: database storage/,
-		);
-		assert.match(
-			result.stderr,
-			/podman compose --file compose.yaml --file development\/compose.yaml logs --tail 50 database storage/,
-		);
-		assert.match(result.stderr, /npm run dev/);
-	});
-
-	for (const [service, state] of [
-		["database", "running unhealthy"],
-		["storage", "exited"],
-		["storage", "dead"],
-		["storage", "restarting"],
-		["database", "dead"],
-		["database", "restarting"],
-		["storage", "running unhealthy"],
-		["database", "exited"],
-	]) {
-		test(`reports ${service} failing after its detached startup command succeeds`, (context) => {
+	for (const [failure, message] of [
+		["PROVIDER_EXIT_STATUS", /Install or repair.*Compose/],
+		["ENGINE_EXIT_STATUS", /podman machine start/],
+	] as const) {
+		test(`starts without persistence when ${failure} prevents containers`, (context) => {
 			const { run } = fixture(context);
-			const result = run("test-token", {
-				STORAGE_SERVICE_TOKEN: "test-token",
-				[`${service.toUpperCase().replaceAll("-", "_")}_STATE`]: state,
-			});
+			const result = run({ [failure]: "1" });
 			assert.equal(result.status, 0, result.stdout + result.stderr);
 			assert.match(result.stdout, /website started/);
-			assert.ok(
-				result.stderr.includes(`${service}: ${state}`),
-				result.stderr,
-			);
-			assert.match(result.stderr, /logs --tail 50/);
+			assert.match(result.stderr, message);
 		});
 	}
-
-	for (const service of ["database", "storage"]) {
-		for (const failure of [
-			"MISSING_SERVICE",
-			"INSPECTION_FAILURE_SERVICE",
-		]) {
-			test(`reports ${service} when ${failure} prevents its health check`, (context) => {
-				const { run } = fixture(context);
-				const result = run("test-token", {
-					STORAGE_SERVICE_TOKEN: "test-token",
-					[failure]: service,
-				});
-				assert.equal(result.status, 0, result.stdout + result.stderr);
-				assert.match(result.stdout, /website started/);
-				assert.ok(
-					result.stderr.includes(
-						`Could not start local services: ${service === "storage" ? "database storage" : service}`,
-					),
-					result.stderr,
-				);
-				assert.ok(
-					!result.stdout.includes(
-						`Local service ${service} is running`,
-					),
-				);
-			});
-		}
-	}
-
-	for (const service of ["database", "storage"]) {
-		test(`rejects ${service} without a container health check`, (context) => {
-			const { run } = fixture(context);
-			const result = run("test-token", {
-				STORAGE_SERVICE_TOKEN: "test-token",
-				[`${service.toUpperCase().replaceAll("-", "_")}_STATE`]:
-					"running",
-			});
-			assert.equal(result.status, 0, result.stdout + result.stderr);
-			assert.ok(
-				result.stderr.includes(
-					`${service} has no container health check`,
-				),
-				result.stderr,
-			);
-			assert.ok(
-				!result.stdout.includes(`Local service ${service} is running`),
-			);
-		});
-	}
-
-	test("bounds readiness checks so a starting service cannot prevent website startup forever", (context) => {
-		const { run } = fixture(context);
-		const result = run("test-token", {
-			STORAGE_SERVICE_TOKEN: "test-token",
-			STORAGE_STATE: "running starting",
-		});
-		assert.equal(result.status, 0, result.stdout + result.stderr);
-		assert.match(result.stdout, /website started/);
-		assert.match(
-			result.stderr,
-			/storage did not become ready after 60 checks/,
-		);
-	});
-
-	test("starts only the database and storage containers", (context) => {
-		const { directory, run } = fixture(context);
-		const result = run("test-token", {
-			STORAGE_SERVICE_TOKEN: "test-token",
-		});
-		assert.equal(result.status, 0, result.stdout + result.stderr);
-		const commands = readFileSync(join(directory, "commands.log"), "utf8");
-		for (const service of ["database", "storage"]) {
-			assert.ok(commands.includes(`}} ${service}`), commands);
-		}
-		assert.doesNotMatch(commands, /--wait|--all --quiet|--quiet website/);
-		assert.doesNotMatch(commands, /telemetry|4318/);
-	});
-
-	test("explains how to restore Compose when its provider is unavailable", (context) => {
-		const { run } = fixture(context);
-		const result = run("", {
-			PROVIDER_EXIT_STATUS: "1",
-			EXPECT_SERVICES: "false",
-		});
-		assert.equal(result.status, 0, result.stdout + result.stderr);
-		assert.match(result.stderr, /Install or repair.*Compose/);
-		assert.match(result.stderr, /podman compose version/);
-	});
-
-	test("explains how to start Podman when its engine is unavailable", (context) => {
-		const { run } = fixture(context);
-		const result = run("", {
-			ENGINE_EXIT_STATUS: "1",
-			EXPECT_SERVICES: "false",
-		});
-		assert.equal(result.status, 0, result.stdout + result.stderr);
-		assert.match(result.stderr, /podman machine start/);
-		assert.match(result.stderr, /podman info/);
-	});
-
-	test("explains how to recover when the website exits with an error", (context) => {
-		const { run } = fixture(context);
-		const result = run("test-token", {
-			STORAGE_SERVICE_TOKEN: "test-token",
-			WEBSITE_EXIT_STATUS: "9",
-		});
-		assert.equal(result.status, 9, result.stdout + result.stderr);
-		assert.match(result.stderr, /Website exited with status 9/);
-		assert.match(result.stderr, /npm run dev -- --port/);
-	});
-
-	test("reports a database failure even when storage passes its liveness health check", (context) => {
-		const { run } = fixture(context);
-		const result = run("test-token", {
-			STORAGE_SERVICE_TOKEN: "test-token",
-			STORAGE_READINESS_EXIT_STATUS: "1",
-		});
-		assert.equal(result.status, 0, result.stdout + result.stderr);
-		assert.match(result.stdout, /website started/);
-		assert.match(result.stderr, /Storage cannot use PostgreSQL/);
-		assert.match(result.stderr, /logs --tail 50 database storage/);
-		assert.match(result.stderr, /original accounts and passwords/);
-	});
 
 	for (const failure of [
 		"SERVICE_EXIT_STATUS",
-		"STORAGE_READINESS_EXIT_STATUS",
-	]) {
-		test(`preserves database data and credentials when ${failure} prevents startup`, (context) => {
+		"MIGRATION_EXIT_STATUS",
+	] as const) {
+		test(`keeps the website available when ${failure} prevents persistence`, (context) => {
 			const { directory, run } = fixture(context);
-			const credentials =
-				"STORAGE_SERVICE_TOKEN=test-token\nPOSTGRES_PASSWORD=saved-password\n";
-			writeFileSync(join(directory, ".env"), credentials);
-			const result = run("test-token", { [failure]: "1" });
+			writeFileSync(
+				join(directory, ".env"),
+				"POSTGRES_PASSWORD=saved-password\n",
+			);
+			const result = run({ [failure]: "1" });
 			assert.equal(result.status, 0, result.stdout + result.stderr);
-			const commands = readFileSync(
-				join(directory, "commands.log"),
-				"utf8",
-			);
-			assert.doesNotMatch(commands, /compose down|--volumes/);
-			assert.equal(
-				readFileSync(join(directory, ".env"), "utf8"),
-				credentials,
-			);
 			assert.match(result.stdout, /website started/);
-			assert.match(result.stderr, /retaining.*database/i);
-			assert.equal(
-				commands.split(
-					"compose up --detach --build --force-recreate --remove-orphans database storage",
-				).length - 1,
-				1,
+			assert.match(result.stderr, /Persistent counters are unavailable/);
+			assert.doesNotMatch(
+				readFileSync(join(directory, "commands.log"), "utf8"),
+				/compose down|--volumes/,
 			);
 		});
 	}
+
+	test("preserves the website exit status", (context) => {
+		const { directory, run } = fixture(context);
+		writeFileSync(
+			join(directory, ".env"),
+			"POSTGRES_PASSWORD=saved-password\n",
+		);
+		const result = run({ WEBSITE_EXIT_STATUS: "9" });
+		assert.equal(result.status, 9, result.stdout + result.stderr);
+		assert.match(result.stderr, /Website exited with status 9/);
+	});
 });

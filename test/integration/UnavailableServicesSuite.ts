@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 
 test(
-	"serves all published pages without storage or telemetry services",
+	"serves all published pages without PostgreSQL or telemetry services",
 	{ timeout: 15000 },
 	async () => {
 		const origin = "http://website:10000";

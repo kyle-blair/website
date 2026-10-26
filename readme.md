@@ -8,15 +8,14 @@ I don't yet have a significant enough reason to separate those roles into differ
 - Node.js
 - npm
 
-A container runtime such as podman is required to run both integration tests and the
-various backing services the website uses, although everything is intentionally designed
-to "just work" as well as conditions allow.
+A container runtime such as Podman is required to run integration tests and the local
+PostgreSQL database, although the website remains available when persistence is not.
 
 ## quick start
 
-Run `npm clean-install` and `npm --prefix services/storage clean-install` from the
-repository root to install dependencies.
-Run `npm run dev` to start all backing services and the website with live reloading.
+Run `npm clean-install` from the repository root to install dependencies.
+Run `npm run dev` to start PostgreSQL, apply the database schema, and start the website
+with live reloading.
 Run tests with `npm test`.
 
 ## observability
@@ -34,12 +33,12 @@ OTEL_EXPORTER_OTLP_HEADERS="Authorization=Basic <your-generated-credentials>"
 
 ## architecture
 
-### microservices
+The website is one application backed by PostgreSQL. A small counter-store interface
+keeps persistence behind the page-view and feedback domain behavior and allows tests to
+inject in-memory doubles. The production implementation connects to PostgreSQL directly.
+Database schema changes run through `npm run database:migrate` before deployment, not in
+request handlers.
 
-The site is designed as a loose collection of microservices. For now, these services are
-colocated in this repository. Services are designed to behave well even when dependent or
-collaborating services are unavailable. For example, the website server still serves
-pages even if the page views or feedback mechanisms apis don't work. The display of the
-correpsonding components clearly indicates the feature isn't available, but it might be
-even smarter to simply not render the component if the service it depends on is
-unavailable.
+Page rendering and health checks do not depend on PostgreSQL. When the database is
+unavailable, page counts and feedback report that they are unavailable while the rest of
+the site continues to work.

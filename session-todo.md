@@ -3,7 +3,6 @@
     1. Perhaps use a cookie?
     2. Perhaps use some kind of public/private key cryptographic scheme to identify
        visitors in a privacy-evangelizing manner.
-    3. Fix identified deficiencies such as a 15 minute server "memory" duration?
 3. Add a tenets/values/privacy page.
 4. Fix all build warnings.
     1. Open telemetry package deprecations/renames.
@@ -22,4 +21,3 @@
        `./validate` controlling whether a change is accepted or not and `./build` or
        `./make` being run to generate artifacts.
     2. Investigate whether "make" (cmake?) is a viable solution.
-6. Remove the over-engineered storage service?

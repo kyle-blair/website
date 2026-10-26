@@ -1,18 +1,15 @@
 import assert from "node:assert/strict";
 import { suite, test } from "node:test";
 import { FeedbackTotals, Feedback } from "../src/domain/feedback.ts";
-import type {
-	PersistentStorage,
-	StoredEntry,
-} from "../src/domain/persistent-storage.ts";
+import type { CounterStore } from "../src/domain/counter-store.ts";
 
 suite("Feedback", () => {
 	test("withdraws reactions independently through signed counter adjustments", async () => {
 		const values = new Map<string, number>();
 		const adjustments: number[] = [];
 		const feedback = new Feedback("item:toggle", {
-			read: async (key) => ({ found: true, value: values.get(key) ?? 0 }),
-			increment: async (key, _operationId, amount = 1) => {
+			read: async (key) => values.get(key) ?? 0,
+			adjust: async (key, _operationId, amount) => {
 				adjustments.push(amount);
 				const value = (values.get(key) ?? 0) + amount;
 				values.set(key, value);
@@ -70,15 +67,12 @@ suite("Feedback", () => {
 		const values = new Map<string, number>();
 		const operations = new Set<string>();
 		const calls: unknown[] = [];
-		const storage: PersistentStorage = {
-			read: async (key) =>
-				values.has(key)
-					? { found: true, value: values.get(key)! }
-					: { found: false },
-			increment: async (key, operationId) => {
+		const storage: CounterStore = {
+			read: async (key) => values.get(key) ?? 0,
+			adjust: async (key, operationId, amount) => {
 				calls.push([key, operationId]);
 				if (!operations.has(operationId)) {
-					values.set(key, (values.get(key) ?? 0) + 1);
+					values.set(key, (values.get(key) ?? 0) + amount);
 					operations.add(operationId);
 				}
 				return values.get(key)!;
@@ -108,13 +102,10 @@ suite("Feedback", () => {
 	});
 	test("keeps independent feedback for different subjects", async () => {
 		const values = new Map<string, number>();
-		const storage: PersistentStorage = {
-			read: async (key) =>
-				values.has(key)
-					? { found: true, value: values.get(key)! }
-					: { found: false },
-			increment: async (key) => {
-				const value = (values.get(key) ?? 0) + 1;
+		const storage: CounterStore = {
+			read: async (key) => values.get(key) ?? 0,
+			adjust: async (key, _operationId, amount) => {
+				const value = (values.get(key) ?? 0) + amount;
 				values.set(key, value);
 				return value;
 			},
@@ -129,11 +120,11 @@ suite("Feedback", () => {
 	});
 
 	test("rejects invalid objects and surfaces service failures without inventing zero totals", async () => {
-		const storage: PersistentStorage = {
+		const storage: CounterStore = {
 			read: async () => {
 				throw new Error("offline");
 			},
-			increment: async () => {
+			adjust: async () => {
 				throw new Error("offline");
 			},
 		};
@@ -150,14 +141,9 @@ suite("Feedback", () => {
 				() => new Feedback(path as string, storage),
 				TypeError,
 			);
-		for (const invalid of [
-			null,
-			{},
-			{ read: async () => ({ found: false }) },
-		])
+		for (const invalid of [null, {}, { read: async () => 0 }])
 			assert.throws(
-				() =>
-					new Feedback("/", invalid as unknown as PersistentStorage),
+				() => new Feedback("/", invalid as unknown as CounterStore),
 				TypeError,
 			);
 		const feedback = new Feedback("/", storage);
@@ -165,8 +151,7 @@ suite("Feedback", () => {
 		await assert.rejects(feedback.record("like", crypto.randomUUID()));
 		const invalid = new Feedback("/", {
 			...storage,
-			read: async () =>
-				({ found: true, value: "not a count" }) as StoredEntry,
+			read: async () => "not a count" as unknown as number,
 		});
 		await assert.rejects(invalid.read(), TypeError);
 	});

@@ -1,6 +1,7 @@
 import { TelemetryInitializationLog } from "../shared/telemetry-initialization-log.ts";
 import { registerOTel } from "@vercel/otel";
 import { UndiciInstrumentation } from "@opentelemetry/instrumentation-undici";
+import { PgInstrumentation } from "@opentelemetry/instrumentation-pg";
 import {
 	DefaultTraceProcessor,
 	DefaultMetricReader,
@@ -39,7 +40,10 @@ export function registerTelemetry() {
 			serviceName: "website",
 			autoDetectResources: false,
 			propagators: ["tracecontext"],
-			instrumentations: [new UndiciInstrumentation()],
+			instrumentations: [
+				new UndiciInstrumentation(),
+				new PgInstrumentation(),
+			],
 			spanProcessors,
 			metricReaders,
 			logRecordProcessors,

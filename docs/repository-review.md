@@ -1,5 +1,11 @@
 # Repository review, 2026-10-22
 
+> Storage status, 2026-10-26: the separate storage service described in this review has
+> been removed. The website now depends on a small counter-store interface, connects to
+> PostgreSQL directly, applies its schema before deployment, and retains idempotency
+> records without expiration. Storage-specific evidence below documents the reviewed
+> snapshot rather than the current architecture.
+
 The largest problems are incomplete validation, infrastructure that obscures the tests,
 and checks that substitute implementation details for real behavior. There is also a
 feedback retry bug that needs a product decision about retention and ambiguous outcomes.

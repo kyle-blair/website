@@ -15,41 +15,9 @@ services:
         ports:
             - "127.0.0.1:3000:10000"
         environment:
-            STORAGE_SERVICE_URL: http://storage:10000
-            STORAGE_SERVICE_TOKEN: ${STORAGE_SERVICE_TOKEN:?Set STORAGE_SERVICE_TOKEN}
-            STORAGE_ALLOW_HTTP: "true"
+            DATABASE_URL: postgresql://storage_service:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}@database:5432/website
             OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
             OTEL_EXPORTER_OTLP_HEADERS: ${OTEL_EXPORTER_OTLP_HEADERS:-}
-        networks: [public, storage]
-        restart: unless-stopped
-        stop_grace_period: 30s
-
-    storage:
-        build:
-            context: .
-            dockerfile: services/storage/containerfile
-        environment:
-            STORAGE_SERVICE_TOKEN: ${STORAGE_SERVICE_TOKEN:?Set STORAGE_SERVICE_TOKEN}
-            OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
-            OTEL_EXPORTER_OTLP_HEADERS: ${OTEL_EXPORTER_OTLP_HEADERS:-}
-            PGHOST: database
-            PGPORT: "5432"
-            PGDATABASE: website
-            PGUSER: storage_service
-            PGPASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}
-        depends_on:
-            database:
-                condition: service_healthy
-        healthcheck:
-            test:
-                - CMD
-                - node
-                - scripts/health-check.mjs
-                - http://127.0.0.1:10000/health/live
-            interval: 5s
-            timeout: 3s
-            retries: 10
-        networks: [public, storage]
         restart: unless-stopped
         stop_grace_period: 30s
 
@@ -67,14 +35,8 @@ services:
             interval: 5s
             timeout: 3s
             retries: 10
-        networks: [storage]
         restart: unless-stopped
         stop_grace_period: 30s
-
-networks:
-    public:
-    storage:
-        internal: true
 
 volumes:
     postgres-data:

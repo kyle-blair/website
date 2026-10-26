@@ -8,6 +8,7 @@ services:
       dockerContext: .
       branch: main
       autoDeployTrigger: off
+      preDeployCommand: node scripts/migrate-database.mjs
       healthCheckPath: /api/health
       maxShutdownDelaySeconds: 30
       envVars:
@@ -15,35 +16,6 @@ services:
             sync: false
           - key: OTEL_EXPORTER_OTLP_HEADERS
             sync: false
-          - key: STORAGE_SERVICE_URL
-            fromService:
-                type: web
-                name: zerofourtwo.com-storage
-                envVarKey: RENDER_EXTERNAL_URL
-          - key: STORAGE_SERVICE_TOKEN
-            fromService:
-                type: web
-                name: zerofourtwo.com-storage
-                envVarKey: STORAGE_SERVICE_TOKEN
-
-    - type: web
-      name: zerofourtwo.com-storage
-      runtime: docker
-      plan: 0.5c-512mb
-      region: oregon
-      dockerfilePath: ./services/storage/containerfile
-      dockerContext: .
-      branch: main
-      autoDeployTrigger: off
-      healthCheckPath: /health/live
-      maxShutdownDelaySeconds: 30
-      envVars:
-          - key: OTEL_EXPORTER_OTLP_ENDPOINT
-            sync: false
-          - key: OTEL_EXPORTER_OTLP_HEADERS
-            sync: false
-          - key: STORAGE_SERVICE_TOKEN
-            generateValue: true
           - key: DATABASE_URL
             fromDatabase:
                 name: zerofourtwo.com-database
