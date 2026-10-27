@@ -23,7 +23,7 @@ suite("Deployment configuration", () => {
 		assert.match(container, /database\/schema\.sql/);
 	});
 
-	test("deploys only the website and telemetry services after validation", async () => {
+	test("deploys only the website after validation", async () => {
 		const workflow = await readFile(
 			new URL(
 				"../.github/workflows/on-push-to-main.yaml",
@@ -33,6 +33,6 @@ suite("Deployment configuration", () => {
 		);
 		assert.doesNotMatch(workflow, /deploy-storage|STORAGE_DEPLOY/);
 		assert.match(workflow, /deploy-website/);
-		assert.match(workflow, /deploy-telemetry/);
+		assert.doesNotMatch(workflow, /deploy-telemetry|TELEMETRY_DEPLOY/);
 	});
 });
