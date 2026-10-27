@@ -13,7 +13,7 @@ export default function Home() {
 					<p className="eyebrow">home</p>
 					<h1 id="home-heading">kyle blair</h1>
 					<p className="hero__statement">
-						I like engineering cool sh*t.
+						I like engineering cool stuff.
 					</p>
 					<a className="hero__scroll" href="#approach">
 						scroll to explore{" "}
