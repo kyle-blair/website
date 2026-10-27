@@ -113,6 +113,18 @@ service_container() {
     return 1
 }
 
+replace_database_container() {
+    local identifier
+    if ! identifier=$(service_container); then
+        return 0
+    fi
+    printf 'Replacing the local database container so it uses the current configuration; retaining its volume.\n'
+    if ! "$container_engine" rm --force "$identifier"; then
+        printf 'Could not replace the local database container. Stop or remove it, then retry npm run dev.\n' >&2
+        return 1
+    fi
+}
+
 wait_for_database() {
     local identifier state container_status health_status attempt
     if ! identifier=$(service_container) || [[ -z "$identifier" ]]; then
@@ -153,7 +165,7 @@ trap cleanup EXIT
 trap 'exit 130' INT
 trap 'exit 143' TERM
 
-if ! compose up --detach --build --force-recreate --remove-orphans database || ! wait_for_database; then
+if ! replace_database_container || ! compose up --detach --build --force-recreate --remove-orphans database || ! wait_for_database; then
     report_database_failure
 elif ! npm run database:migrate; then
     printf 'Persistent counters are unavailable because the database schema could not be applied. Review the migration error, correct the database configuration, and retry npm run dev.\n' >&2

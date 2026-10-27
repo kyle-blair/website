@@ -56,7 +56,7 @@ export function SiteVisitorDetails() {
 			setFlicker((previous) => ({ cycle: previous.cycle + 1, timings }));
 		}
 		randomizeFlickerTimings();
-		const timer = window.setInterval(randomizeFlickerTimings, 3200);
+		const timer = window.setInterval(randomizeFlickerTimings, 5000);
 		return () => window.clearInterval(timer);
 	}, [streamText]);
 

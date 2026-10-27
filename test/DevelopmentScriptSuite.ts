@@ -53,6 +53,7 @@ case "$*" in
     "compose version") exit "${"${PROVIDER_EXIT_STATUS:-0}"}" ;;
     "info") exit "${"${ENGINE_EXIT_STATUS:-0}"}" ;;
     "compose stop database") exit "${"${CLEANUP_EXIT_STATUS:-0}"}" ;;
+    "rm --force database") ;;
     "compose ps --quiet") printf 'database\\n' ;;
     'inspect --format {{index .Config.Labels "com.docker.compose.service"}} database') printf 'database\\n' ;;
     'inspect --format {{.State.Status}} {{if .State.Health}}{{.State.Health.Status}}{{end}} database') printf '%s\\n' "${"${DATABASE_STATE:-running healthy}"}" ;;

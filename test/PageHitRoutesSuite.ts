@@ -55,7 +55,8 @@ suite("Website page-count routes", () => {
 			);
 	});
 
-	test("contains counter failures without affecting health", async () => {
+	test("logs and contains counter failures without affecting health", async (context) => {
+		const errors = context.mock.method(console, "error", () => {});
 		const endpoint = new PageHitsEndpoint(
 			{
 				read: async () => {
@@ -79,5 +80,20 @@ suite("Website page-count routes", () => {
 		);
 		assert.equal(response.status, 503);
 		assert.equal(health().status, 200);
+		assert.equal(errors.mock.callCount(), 1);
+		const record = JSON.parse(errors.mock.calls[0].arguments[0]);
+		assert.equal(record.severityText, "ERROR");
+		assert.equal(record.severityNumber, 17);
+		assert.equal(record.component, "page-count");
+		assert.equal(record.operation, "record");
+		assert.equal(
+			record.body,
+			"The page count could not be recorded. Review the error details, verify that PostgreSQL is reachable and initialized, and retry the request.",
+		);
+		assert.ok(record.error.includes("Database unavailable"));
+		assert.equal(
+			new Date(record.timestamp).toISOString(),
+			record.timestamp,
+		);
 	});
 });

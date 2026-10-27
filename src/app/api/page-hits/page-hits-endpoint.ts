@@ -1,3 +1,5 @@
+import { inspect } from "node:util";
+import { SeverityNumber } from "@opentelemetry/api-logs";
 import { Submission, RequestRejection } from "../submission.ts";
 import type { CounterStore } from "../../../domain/counter-store.ts";
 
@@ -31,8 +33,8 @@ export class PageHitsEndpoint {
 					"The counter store returned an invalid page count.",
 				);
 			return this.response({ count }, 200);
-		} catch {
-			return this.response({ error: "Page count unavailable" }, 503);
+		} catch (error) {
+			return this.unavailable("read", error);
 		}
 	}
 
@@ -65,8 +67,25 @@ export class PageHitsEndpoint {
 		} catch (error) {
 			if (error instanceof RequestRejection)
 				return this.response({ error: error.message }, error.status);
-			return this.response({ error: "Page count unavailable" }, 503);
+			return this.unavailable("record", error);
 		}
+	}
+	private unavailable(operation: "read" | "record", error: unknown) {
+		console.error(
+			JSON.stringify({
+				timestamp: new Date().toISOString(),
+				severityNumber: SeverityNumber.ERROR,
+				severityText: "ERROR",
+				component: "page-count",
+				operation,
+				body:
+					operation === "read"
+						? "The page count could not be read. Review the error details, verify that PostgreSQL is reachable and initialized, and retry the request."
+						: "The page count could not be recorded. Review the error details, verify that PostgreSQL is reachable and initialized, and retry the request.",
+				error: inspect(error, { depth: null }),
+			}),
+		);
+		return this.response({ error: "Page count unavailable" }, 503);
 	}
 	private response(body: object, status: number): Response {
 		return Response.json(body, {

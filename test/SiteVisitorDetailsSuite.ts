@@ -47,7 +47,7 @@ for (const address of [
 			dom.window,
 			"setInterval",
 			(callback: () => void, milliseconds: number) => {
-				assert.equal(milliseconds, 3200);
+				assert.equal(milliseconds, 5000);
 				nextCycle = callback;
 				return 1;
 			},
