@@ -30,15 +30,3 @@ that it's even less prescriptive than this.
 OTEL_EXPORTER_OTLP_ENDPOINT=https://<your-open-telemetry-compatible-endpoint>/otlp
 OTEL_EXPORTER_OTLP_HEADERS="Authorization=Basic <your-generated-credentials>"
 ```
-
-## architecture
-
-The website is one application backed by PostgreSQL. A small counter-store interface
-keeps persistence behind the page-view and feedback domain behavior and allows tests to
-inject in-memory doubles. The production implementation connects to PostgreSQL directly.
-Database schema changes run through `npm run database:migrate` before deployment, not in
-request handlers.
-
-Page rendering and health checks do not depend on PostgreSQL. When the database is
-unavailable, page counts and feedback report that they are unavailable while the rest of
-the site continues to work.
