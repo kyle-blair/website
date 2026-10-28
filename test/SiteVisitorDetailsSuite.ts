@@ -6,7 +6,6 @@ import { act, createElement } from "react";
 import { createRoot } from "react-dom/client";
 import { JSDOM } from "jsdom";
 import { averageFallingCharacterSpeed } from "../src/components/falling-character-speed.ts";
-import ts from "typescript";
 
 registerHooks({
 	resolve(specifier, context, nextResolve) {
@@ -150,6 +149,37 @@ for (const address of [
 				}
 			};
 			const initialTimings = timings();
+			const noiseSamples = () =>
+				addressCharacters().map((character) =>
+					Array.from({ length: 4 }, (_, index) => {
+						const sample = index + 1;
+						const glyph = character.style.getPropertyValue(
+							`--flicker-glyph-${sample}`,
+						);
+						const offset = character.style.getPropertyValue(
+							`--flicker-offset-${sample}`,
+						);
+						const opacity = character.style.getPropertyValue(
+							`--flicker-opacity-${sample}`,
+						);
+						assert.match(glyph, /^"[042/<>{}: ]"$/);
+						assert.match(offset, /^-?\d+(\.\d+)?px$/);
+						assert.ok(Math.abs(Number.parseFloat(offset)) <= 2);
+						assert.ok(
+							Number(opacity) >= 0.35 && Number(opacity) <= 1,
+						);
+						return { glyph, offset, opacity };
+					}),
+				);
+			const initialNoise = noiseSamples();
+			assert.ok(
+				new Set(initialNoise.flat().map((sample) => sample.glyph))
+					.size > 1,
+			);
+			assert.ok(
+				new Set(initialNoise.flat().map((sample) => sample.offset))
+					.size > 1,
+			);
 			assertTimingWindow();
 			assert.ok(
 				new Set(initialTimings.map((timing) => timing.duration)).size >
@@ -168,6 +198,7 @@ for (const address of [
 				await act(() => nextCycle());
 				assertTimingWindow();
 				assert.notDeepEqual(timings(), initialTimings);
+				assert.notDeepEqual(noiseSamples(), initialNoise);
 				cycleStarts.push(timings()[0].start);
 			}
 			assert.ok(timings().every((timing) => timing.duration > 0.79));
@@ -310,6 +341,29 @@ for (const address of [
 					),
 				).size >= 4,
 			);
+			for (const [index, frame] of [...flicker.cssRules]
+				.slice(0, 4)
+				.entries()) {
+				const sample = index + 1;
+				const properties = (frame as CSSKeyframeRule).style;
+				assert.equal(
+					properties.content,
+					`var(--flicker-glyph-${sample})`,
+				);
+				assert.equal(
+					properties.transform,
+					`translateX(var(--flicker-offset-${sample}))`,
+				);
+				assert.equal(
+					properties.opacity,
+					`var(--flicker-opacity-${sample})`,
+				);
+			}
+			const settled = (
+				flicker.cssRules[flicker.cssRules.length - 1] as CSSKeyframeRule
+			).style;
+			assert.equal(settled.transform, "translateX(0)");
+			assert.equal(settled.opacity, "1");
 			const pause = [...style.sheet!.cssRules].find(
 				(rule) =>
 					"selectorText" in rule &&

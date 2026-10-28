@@ -786,19 +786,29 @@ main:has(> .blog-article-page)::before {
 
 @keyframes network-address-flicker {
 	0% {
-		content: "{";
+		content: var(--flicker-glyph-1);
+		transform: translateX(var(--flicker-offset-1));
+		opacity: var(--flicker-opacity-1);
 	}
-	25% {
-		content: "/";
+	22% {
+		content: var(--flicker-glyph-2);
+		transform: translateX(var(--flicker-offset-2));
+		opacity: var(--flicker-opacity-2);
 	}
-	50% {
-		content: "}";
+	49% {
+		content: var(--flicker-glyph-3);
+		transform: translateX(var(--flicker-offset-3));
+		opacity: var(--flicker-opacity-3);
 	}
-	75% {
-		content: ">";
+	81% {
+		content: var(--flicker-glyph-4);
+		transform: translateX(var(--flicker-offset-4));
+		opacity: var(--flicker-opacity-4);
 	}
 	100% {
 		content: attr(data-character);
+		transform: translateX(0);
+		opacity: 1;
 	}
 }
 

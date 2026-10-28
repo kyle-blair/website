@@ -15,6 +15,8 @@ type SiteVisitorResponse = {
 	networkAddress: string;
 };
 
+const flickerGlyphs = "042/<>{}: ";
+
 export function SiteVisitorDetails() {
 	const [address, setAddress] = useState(UNKNOWN_NETWORK_ADDRESS);
 	const [isLoading, setIsLoading] = useState(true);
@@ -24,7 +26,7 @@ export function SiteVisitorDetails() {
 	const [animationDuration, setAnimationDuration] = useState(0);
 	const [flicker, setFlicker] = useState({
 		cycle: 0,
-		timings: [] as CSSProperties[],
+		styles: [] as CSSProperties[],
 	});
 	const view = new NetworkAddressView(isLoading, address);
 	const streamText = view.isLoading ? view.glyphs.join("") : view.text;
@@ -44,19 +46,31 @@ export function SiteVisitorDetails() {
 	useEffect(() => {
 		if (window.matchMedia("(prefers-reduced-motion: reduce)").matches)
 			return;
-		function randomizeFlickerTimings() {
+		function randomizeFlicker() {
 			const start = 2.084 + Math.random() * 0.316;
-			const timings = [...streamText].map(() => {
+			const styles = [...streamText].map(() => {
 				const duration = 0.128 + Math.random() * 0.672;
-				return {
+				const style: CSSProperties & Record<`--${string}`, string> = {
 					animationDelay: `${start}s`,
 					animationDuration: `${duration}s`,
 				};
+				for (let sample = 1; sample <= 4; sample += 1) {
+					const glyph =
+						flickerGlyphs[
+							Math.floor(Math.random() * flickerGlyphs.length)
+						];
+					style[`--flicker-glyph-${sample}`] = `"${glyph}"`;
+					style[`--flicker-offset-${sample}`] =
+						`${(Math.random() * 4 - 2).toFixed(2)}px`;
+					style[`--flicker-opacity-${sample}`] =
+						`${0.35 + Math.random() * 0.65}`;
+				}
+				return style;
 			});
-			setFlicker((previous) => ({ cycle: previous.cycle + 1, timings }));
+			setFlicker((previous) => ({ cycle: previous.cycle + 1, styles }));
 		}
-		randomizeFlickerTimings();
-		const timer = window.setInterval(randomizeFlickerTimings, 5000);
+		randomizeFlicker();
+		const timer = window.setInterval(randomizeFlicker, 5000);
 		return () => window.clearInterval(timer);
 	}, [streamText]);
 
@@ -141,7 +155,7 @@ export function SiteVisitorDetails() {
 								className="network-address-stream__character"
 								key={`${flicker.cycle}:${index}`}
 								data-character={character}
-								style={flicker.timings[index]}
+								style={flicker.styles[index]}
 							>
 								{character}
 							</span>
