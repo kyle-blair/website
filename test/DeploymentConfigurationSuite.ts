@@ -3,6 +3,22 @@ import { readFile } from "node:fs/promises";
 import { suite, test } from "node:test";
 
 suite("Deployment configuration", () => {
+	test("waits for PostgreSQL network connections before reporting the database healthy", async () => {
+		const compose = await readFile(
+			new URL("../compose.yaml", import.meta.url),
+			"utf8",
+		);
+		const readinessCommand = compose.match(
+			/\[\s*CMD,\s*pg_isready,([^\]]+)\]/,
+		);
+		assert.ok(readinessCommand);
+		const host = readinessCommand[1].match(/--host=([^,\s]+)/)?.[1];
+		assert.ok(
+			host && !host.startsWith("/"),
+			"Database readiness must check a network host because migrations connect over the network, while the initialization server only accepts local socket connections.",
+		);
+	});
+
 	test("connects the website directly to PostgreSQL and migrates before deployment", async () => {
 		const render = await readFile(
 			new URL("../render.yaml", import.meta.url),
