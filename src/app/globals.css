@@ -726,13 +726,13 @@ main:has(> .blog-article-page)::before {
 
 .network-address-stream__character {
 	height: min(
-		1.5rem,
+		0.75rem,
 		calc(
 			var(--address-animation-window-height) * 0.7 / var(--address-length)
 		)
 	);
 	line-height: min(
-		1.5rem,
+		0.75rem,
 		calc(
 			var(--address-animation-window-height) * 0.7 / var(--address-length)
 		)
@@ -832,11 +832,11 @@ main:has(> .blog-article-page)::before {
 
 	.network-address-stream__character {
 		height: min(
-			1.5rem,
+			0.75rem,
 			calc(var(--address-window-height) / var(--address-length))
 		);
 		line-height: min(
-			1.5rem,
+			0.75rem,
 			calc(var(--address-window-height) / var(--address-length))
 		);
 		font-size: min(

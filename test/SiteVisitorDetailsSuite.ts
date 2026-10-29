@@ -295,7 +295,7 @@ for (const address of [
 			) as CSSStyleRule;
 			assert.equal(
 				character.style.height.replace(/\s+/g, ""),
-				"min(1.5rem,calc(var(--address-animation-window-height)*0.7/var(--address-length)))",
+				"min(0.75rem,calc(var(--address-animation-window-height)*0.7/var(--address-length)))",
 			);
 			assert.equal(character.style.lineHeight, character.style.height);
 			assert.equal(
@@ -400,7 +400,7 @@ for (const address of [
 			assert.equal(staticGlyph.style.animation, "none");
 			assert.equal(
 				staticCharacter.style.height.replace(/\s+/g, ""),
-				"min(1.5rem,calc(var(--address-window-height)/var(--address-length)))",
+				"min(0.75rem,calc(var(--address-window-height)/var(--address-length)))",
 			);
 			assert.equal(
 				staticCharacter.style.fontSize.replace(/\s+/g, ""),
