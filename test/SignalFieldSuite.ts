@@ -2,28 +2,107 @@ import assert from "node:assert/strict";
 import { suite, test, type TestContext } from "node:test";
 import { startSignalField } from "../src/components/signal-field-animation.ts";
 
-type Glyph = { character: string; x: number; y: number };
+type Glyph = {
+	character: string;
+	x: number;
+	y: number;
+	color?: string;
+	alpha?: number;
+};
 
-// Run the animation with a controlled canvas, clock, and randomness.
-function mountSignalField(context: TestContext, reducedMotion = false) {
+function mountSignalField(
+	context: TestContext,
+	reducedMotion = false,
+	glyphContextAvailable = true,
+) {
 	let glyphs: Glyph[] = [];
 	let canvasResets = 0;
+	let paints = 0;
+	let textDraws = 0;
+	let layoutReads = 0;
+	let addressLeft: number | undefined;
+	const atlasGlyphs: Glyph[] = [];
+	const atlasContext = {
+		fillStyle: "",
+		setTransform() {},
+		fillText(character: string, x: number, y: number) {
+			textDraws += 1;
+			atlasGlyphs.push({ character, x, y, color: this.fillStyle });
+		},
+	};
+	const atlas = {
+		width: 0,
+		height: 0,
+		getContext: () => (glyphContextAvailable ? atlasContext : null),
+	};
 	let nextFrame = 0;
 	let cleanup: (() => void) | undefined;
 	const frames = new Map<number, FrameRequestCallback>();
 	const listeners = new Map<string, () => void>();
 	const drawingContext = {
+		globalAlpha: 1,
 		setTransform() {},
 		fillRect() {
+			paints += 1;
 			glyphs = [];
 		},
 		fillText(character: string, x: number, y: number) {
+			textDraws += 1;
 			glyphs.push({ character, x, y });
+		},
+		drawImage(
+			image: unknown,
+			sourceX: number,
+			sourceY: number,
+			sourceWidth: number,
+			sourceHeight: number,
+			x: number,
+			y: number,
+			width: number,
+			height: number,
+		) {
+			assert.equal(image, atlas);
+			assert.equal(sourceWidth, width * browser.devicePixelRatio);
+			assert.equal(sourceHeight, height * browser.devicePixelRatio);
+			const glyph = atlasGlyphs.findLast(
+				(glyph) =>
+					glyph.x ===
+						sourceX / browser.devicePixelRatio + width / 2 &&
+					glyph.y ===
+						sourceY / browser.devicePixelRatio + height * 0.75,
+			);
+			assert.ok(glyph, "the glyph has been rendered in the atlas");
+			glyphs.push({
+				character: glyph.character,
+				x: x + width / 2,
+				y: y + height * 0.75,
+				color: glyph.color,
+				alpha: this.globalAlpha,
+			});
 		},
 	};
 	let bitmapWidth = 0;
 	let bitmapHeight = 0;
 	const canvas = {
+		ownerDocument: {
+			createElement(name: string) {
+				assert.equal(name, "canvas");
+				return atlas;
+			},
+			querySelector(selector: string) {
+				layoutReads += 1;
+				assert.equal(selector, ".network-address-stream__window");
+				return addressLeft === undefined
+					? null
+					: {
+							getBoundingClientRect: () => ({
+								left: addressLeft!,
+								right: addressLeft! + 16,
+							}),
+						};
+			},
+		},
+		getBoundingClientRect: () => ({ left: 30, top: 50 }),
 		clientWidth: 300,
 		clientHeight: 600,
 		get width() {
@@ -46,7 +125,11 @@ function mountSignalField(context: TestContext, reducedMotion = false) {
 	};
 	const browser = {
 		devicePixelRatio: 2,
-		matchMedia: () => ({ matches: reducedMotion }),
+		matchMedia: () => ({
+			get matches() {
+				return reducedMotion;
+			},
+		}),
 		getComputedStyle: () => ({ backgroundColor: "#070609" }),
 		requestAnimationFrame(callback: FrameRequestCallback) {
 			frames.set(++nextFrame, callback);
@@ -79,6 +162,21 @@ function mountSignalField(context: TestContext, reducedMotion = false) {
 		browser,
 		frames,
 		listeners,
+		get paints() {
+			return paints;
+		},
+		get textDraws() {
+			return textDraws;
+		},
+		get layoutReads() {
+			return layoutReads;
+		},
+		get atlasGlyphs() {
+			return atlasGlyphs;
+		},
+		setAddressLane(left?: number) {
+			addressLeft = left;
+		},
 		get canvasResets() {
 			return canvasResets;
 		},
@@ -96,6 +194,12 @@ function mountSignalField(context: TestContext, reducedMotion = false) {
 			callback(time);
 			assert.ok(glyphs.length > 0, "the frame draws visible characters");
 			return glyphs;
+		},
+		setReducedMotion(value: boolean) {
+			reducedMotion = value;
+		},
+		scroll() {
+			listeners.get("scroll")?.();
 		},
 		resize() {
 			const listener = listeners.get("resize");
@@ -169,33 +273,98 @@ suite("Signal field", () => {
 		const reference = mountSignalField(context);
 		paused.frame(100);
 		reference.frame(100);
-		const before = paused.frame(116);
-		reference.frame(116);
+		const before = paused.frame(140);
+		reference.frame(140);
 
-		const resumed = paused.frame(2116);
-		assert.deepEqual(resumed, reference.frame(166));
+		const resumed = paused.frame(2140);
+		assert.deepEqual(resumed, reference.frame(190));
 		assert.ok(
 			resumed[0].y > before[0].y,
 			"the animation still moves forward",
 		);
-		assert.deepEqual(paused.frame(2132), reference.frame(182));
-		assert.deepEqual(paused.frame(2148), reference.frame(198));
+		assert.deepEqual(paused.frame(2180), reference.frame(230));
 	});
 
-	test("normal animation speed is independent of display refresh rate", (context) => {
-		const slower = mountSignalField(context);
-		const faster = mountSignalField(context);
-		slower.frame(100);
-		faster.frame(100);
-		for (let time = 116; time <= 196; time += 16) slower.frame(time);
-		for (let time = 108; time <= 196; time += 8) faster.frame(time);
-		assert.deepEqual(slower.glyphs, faster.glyphs);
+	for (const refreshRate of [60, 120, 144]) {
+		test(`paints at most 30 frames per second on a ${refreshRate} Hz display without changing speed`, (context) => {
+			const animation = mountSignalField(context);
+			const reference = mountSignalField(context);
+			animation.frame(0);
+			reference.frame(0);
+			const initialPaints = animation.paints;
+			for (let frame = 1; frame <= refreshRate; frame += 1) {
+				animation.frame((frame * 1000) / refreshRate);
+			}
+			for (let frame = 1; frame <= 30; frame += 1) {
+				reference.frame((frame * 1000) / 30);
+			}
+			assert.equal(animation.paints - initialPaints, 30);
+			assert.equal(reference.paints - initialPaints, 30);
+			assert.equal(
+				animation.glyphs[0].character,
+				reference.glyphs[0].character,
+			);
+			assert.ok(
+				Math.abs(animation.glyphs[0].y - reference.glyphs[0].y) <
+					0.000001,
+			);
+		});
+	}
+
+	test("reuses rendered glyphs until pixel density changes", (context) => {
+		const animation = mountSignalField(context);
+		const initialTextDraws = animation.textDraws;
+		assert.ok(initialTextDraws > 0);
+		animation.frame(0);
+		for (let frame = 1; frame <= 120; frame += 1)
+			animation.frame((frame * 1000) / 120);
+		assert.equal(animation.textDraws, initialTextDraws);
+		assert.ok(
+			animation.glyphs.some(
+				({ color }) => color === "rgb(100, 255, 152)",
+			),
+		);
+		assert.ok(
+			animation.glyphs.some(
+				({ color }) => color === "rgb(157, 124, 255)",
+			),
+		);
+		assert.ok(
+			animation.glyphs.every(
+				({ alpha }) => alpha! >= 0.04 && alpha! <= 0.8,
+			),
+		);
+		animation.canvas.clientWidth += 30;
+		animation.resize();
+		assert.equal(animation.textDraws, initialTextDraws);
+		animation.browser.devicePixelRatio = 1;
+		animation.resize();
+		assert.equal(animation.textDraws, initialTextDraws * 2);
 	});
 
-	test("reduced motion draws a static frame and unmounting removes animation work", (context) => {
+	test("stops scheduling frames when reduced motion is enabled during animation", (context) => {
+		const animation = mountSignalField(context);
+		animation.frame(0);
+		animation.setReducedMotion(true);
+		animation.frame(40);
+		assert.equal(animation.frames.size, 0);
+	});
+	test("an unavailable glyph context leaves the animation inactive", (context) => {
+		const animation = mountSignalField(context, false, false);
+		assert.equal(animation.frames.size, 0);
+		assert.equal(animation.listeners.size, 0);
+		assert.equal(animation.paints, 0);
+	});
+
+	test("reduced motion draws a static frame and repaints after resizing", (context) => {
 		const still = mountSignalField(context, true);
 		assert.ok(still.glyphs.length > 0);
 		assert.equal(still.frames.size, 0);
+		const paints = still.paints;
+		still.canvas.clientHeight += 40;
+		still.resize();
+		assert.equal(still.paints, paints + 1);
+		assert.ok(still.glyphs.length > 0);
 		still.unmount();
 		assert.equal(still.listeners.size, 0);
 
@@ -206,41 +375,25 @@ suite("Signal field", () => {
 		assert.equal(moving.listeners.size, 0);
 	});
 
-	test("keeps the network address lane free of falling background characters", (context) => {
+	test("keeps the address lane clear without reading layout during unchanged animation frames", (context) => {
 		const animation = mountSignalField(context);
-		let addressLeft = 100;
-		Object.assign(animation.canvas, {
-			getBoundingClientRect: () => ({ left: 30, top: 50 }),
-		});
-		Object.assign(animation.canvas, {
-			ownerDocument: {
-				querySelector: (selector: string) => {
-					assert.equal(selector, ".network-address-stream__window");
-					return {
-						getBoundingClientRect: () => ({
-							left: addressLeft,
-							right: addressLeft + 16,
-							top: 250,
-							bottom: 350,
-						}),
-					};
-				},
-			},
-		});
-
+		animation.setAddressLane(100);
+		animation.resize();
 		const glyphs = animation.frame(100);
 		assert.ok(glyphs.some(({ x }) => x === 45));
 		assert.ok(glyphs.every(({ x }) => x !== 75));
-		for (let time = 116; time <= 916; time += 16) {
+		const layoutReads = animation.layoutReads;
+		for (let time = 140; time <= 940; time += 40) {
 			assert.ok(animation.frame(time).every(({ x }) => x !== 75));
 		}
-		addressLeft = 70;
-		const movedGlyphs = animation.frame(932);
+		assert.equal(animation.layoutReads, layoutReads);
+		animation.setAddressLane(70);
+		animation.scroll();
+		const movedGlyphs = animation.frame(980);
 		assert.ok(movedGlyphs.every(({ x }) => x !== 45));
 		assert.ok(movedGlyphs.some(({ x }) => x === 75));
-		Object.assign(animation.canvas, {
-			ownerDocument: { querySelector: () => null },
-		});
-		assert.ok(animation.frame(948).some(({ x }) => x === 45));
+		animation.setAddressLane();
+		animation.resize();
+		assert.ok(animation.frame(1020).some(({ x }) => x === 45));
 	});
 });
