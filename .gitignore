@@ -22,3 +22,7 @@ pnpm-debug.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# browser performance tests
+/performance-results/
+/test-results/

@@ -13,3 +13,5 @@
 .agents
 .codex
 .aws
+**/performance-results
+**/test-results

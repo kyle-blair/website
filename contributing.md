@@ -98,6 +98,24 @@ PostgreSQL inside a disposable container and cache build layers by default;
 `npm run test:no-cache` uses fresh inner container storage. Run `npm run lint`,
 `npm run typecheck`, and `npm run format:verify` before submitting changes.
 
+Performance tests run separately with `npm run test:performance`. First install the
+managed Chromium browser with `npm run test:performance:install`. The test builds and
+starts the production website on port 3100, launches headless Chromium at 1920 by 1080
+with a pixel density of 2, and takes about three minutes after startup.
+
+After warming up, it collects three 30-second samples each with the background running
+and paused, alternating their order. The address stream remains active in both cases.
+Timestamped reports in `performance-results/` retain all samples, median and range,
+processor use by browser process type, and machine, browser, and graphics configuration.
+
+Processor percentages are relative to one core: 100 percent means one core fully used.
+The graphics process's processor time is included; this measures processor use rather
+than graphics hardware utilization. The running samples establish the current homepage
+baseline, and their median minus the paused median estimates the background's added cost.
+Compare reports from the same machine and browser configuration. The test records a
+baseline without enforcing a performance budget; invalid samples fail instead of being
+reported as valid measurements.
+
 Using Podman on macOS, I needed to increase the ram of Podman's default virtual machine
 from the default 2 GiB to 4 GiB.
 
