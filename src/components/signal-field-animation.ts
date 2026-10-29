@@ -3,200 +3,115 @@ import { fallingCharacterSpeed } from "./falling-character-speed.ts";
 const characters = ["0", "4", "2", "/", "<", ">", "{", "}", ":"];
 const columnWidth = 30;
 const rowHeight = 24;
-const frameInterval = 1000 / 30;
-const glyphColors = ["rgb(157, 124, 255)", "rgb(100, 255, 152)"];
+const traceWidth = 12;
+const maximumTraces = 24;
 
 type Trace = {
-	column: number;
-	offset: number;
-	speed: number;
-	length: number;
+	element: HTMLSpanElement;
+	animation: Animation;
 };
 
 export function startSignalField(
-	canvas: HTMLCanvasElement,
-	browser: Window = window,
+	field: HTMLDivElement,
+	browser: Window & typeof globalThis = window,
 	random: () => number = Math.random,
 ) {
-	const context = canvas.getContext("2d");
-	if (!context) return;
-
-	const glyphs = canvas.ownerDocument.createElement("canvas");
-	const glyphContext = glyphs.getContext("2d");
-	if (!glyphContext) return;
-
-	const target: HTMLCanvasElement = canvas;
-	const drawingContext: CanvasRenderingContext2D = context;
-	const glyphDrawingContext: CanvasRenderingContext2D = glyphContext;
+	const document = field.ownerDocument;
 	const reducedMotion = browser.matchMedia(
 		"(prefers-reduced-motion: reduce)",
 	);
-	let animationFrame = 0;
-	let width = 0;
-	let height = 0;
-	let pixelRatio = 0;
-	let animationTime = 0;
-	let timeSincePaint = frameInterval;
-	let previousFrameTime: number | undefined;
-	let traces: Trace[] = [];
-	let backgroundColor = "#070609";
-	let addressLane: { left: number; right: number } | undefined;
-	let addressLaneChanged = true;
+	const traces: Trace[] = [];
+	let isVisible = true;
 
-	function renderGlyphs() {
-		glyphs.width = characters.length * columnWidth * pixelRatio;
-		glyphs.height = glyphColors.length * rowHeight * pixelRatio;
-		glyphDrawingContext.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
-		glyphDrawingContext.font = '12px "SFMono-Regular", Consolas, monospace';
-		glyphDrawingContext.textAlign = "center";
-		for (const [row, color] of glyphColors.entries()) {
-			glyphDrawingContext.fillStyle = color;
-			for (const [column, character] of characters.entries()) {
-				glyphDrawingContext.fillText(
-					character,
-					column * columnWidth + columnWidth / 2,
-					row * rowHeight + rowHeight * 0.75,
-				);
-			}
-		}
-	}
-
-	function invalidateAddressLane() {
-		addressLaneChanged = true;
-	}
-
-	function resize() {
-		invalidateAddressLane();
-		const nextPixelRatio = Math.min(browser.devicePixelRatio, 2);
-		const nextWidth = target.clientWidth;
-		const nextHeight = target.clientHeight;
-		if (
-			nextWidth === width &&
-			nextHeight === height &&
-			nextPixelRatio === pixelRatio
-		) {
-			return;
-		}
-
-		if (nextPixelRatio !== pixelRatio) {
-			pixelRatio = nextPixelRatio;
-			renderGlyphs();
-		}
-		width = nextWidth;
-		height = nextHeight;
-		backgroundColor = browser.getComputedStyle(target).backgroundColor;
-		target.width = width * pixelRatio;
-		target.height = height * pixelRatio;
-		drawingContext.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
-
-		const columnCount = Math.ceil(width / columnWidth);
-		traces = Array.from(
-			{ length: columnCount },
-			(_, column) =>
-				traces[column] ?? {
-					column,
-					offset: random() * height,
-					speed: 0.35 + random() * 0.8,
-					length: 3 + Math.floor(random() * 9),
-				},
-		);
-		paint();
-	}
-
-	function paint() {
-		if (addressLaneChanged) {
-			const addressBounds = target.ownerDocument
-				.querySelector(".network-address-stream__window")
-				?.getBoundingClientRect();
-			const canvasLeft = target.getBoundingClientRect().left;
-			addressLane = addressBounds
-				? {
-						left: addressBounds.left - canvasLeft,
-						right: addressBounds.right - canvasLeft,
-					}
-				: undefined;
-			addressLaneChanged = false;
-		}
-
-		drawingContext.globalAlpha = 1;
-		drawingContext.fillStyle = backgroundColor;
-		drawingContext.fillRect(0, 0, width, height);
-
+	function updateMotion() {
+		const isPaused = document.hidden || !isVisible || reducedMotion.matches;
 		for (const trace of traces) {
-			const x = trace.column * columnWidth + columnWidth / 2;
-			if (
-				addressLane &&
-				x + columnWidth / 2 > addressLane.left &&
-				x - columnWidth / 2 < addressLane.right
-			)
-				continue;
-			const fieldWeight = 0.78;
-			const head =
-				(trace.offset +
-					(animationTime * trace.speed * fallingCharacterSpeed) /
-						1000) %
-				(height + 240);
+			if (isPaused) trace.animation.pause();
+			else trace.animation.play();
+		}
+	}
 
-			for (let index = 0; index < trace.length; index += 1) {
-				const y = head - index * rowHeight;
-				if (y < -rowHeight || y > height + rowHeight) continue;
-
-				const alpha = Math.max(
-					0.04,
-					(1 - index / trace.length) * fieldWeight,
-				);
-				const isHead = index === 0 && trace.column % 4 === 0;
-				drawingContext.globalAlpha = isHead
-					? Math.min(alpha + 0.25, 0.8)
-					: alpha;
-				const characterIndex = Math.floor(
-					(trace.column * 7 + index * 3 + animationTime * 0.002) %
-						characters.length,
-				);
-				drawingContext.drawImage(
-					glyphs,
-					characterIndex * columnWidth * pixelRatio,
-					(isHead ? rowHeight : 0) * pixelRatio,
-					columnWidth * pixelRatio,
-					rowHeight * pixelRatio,
-					x - columnWidth / 2,
-					y - rowHeight * 0.75,
-					columnWidth,
-					rowHeight,
-				);
+	function createTrace(height: number, index: number): Trace {
+		const element = document.createElement("span");
+		element.className = "signal-field__trace";
+		const length = 3 + Math.floor(random() * 9);
+		const speed = (0.35 + random() * 0.8) * fallingCharacterSpeed;
+		for (let character = 0; character < length; character += 1) {
+			const glyph = document.createElement("span");
+			glyph.textContent =
+				characters[Math.floor(random() * characters.length)];
+			glyph.style.opacity = `${Math.max(0.04, (1 - character / length) * 0.78)}`;
+			if (character === 0 && index % 4 === 0) {
+				glyph.style.color = "rgb(100, 255, 152)";
+				glyph.style.opacity = "0.8";
 			}
+			element.append(glyph);
 		}
+		field.append(element);
+		const distance = height + length * rowHeight;
+		const duration = (distance / speed) * 1000;
+		const animation = element.animate(
+			[
+				{ transform: `translateY(-${length * rowHeight}px)` },
+				{ transform: `translateY(${height}px)` },
+			],
+			{ duration, iterations: Infinity, easing: "linear" },
+		);
+		animation.pause();
+		animation.currentTime = ((random() * height) / distance) * duration;
+		return { element, animation };
 	}
 
-	function draw(frameTime: number) {
-		if (previousFrameTime !== undefined) {
-			const elapsed = Math.min(frameTime - previousFrameTime, 50);
-			animationTime += elapsed;
-			timeSincePaint += elapsed;
+	function layout() {
+		const width = field.clientWidth;
+		const height = field.clientHeight;
+		const fieldLeft = field.getBoundingClientRect().left;
+		const addressBounds = document
+			.querySelector(".network-address-stream__window")
+			?.getBoundingClientRect();
+		const columns = Array.from(
+			{ length: Math.ceil(width / columnWidth) },
+			(_, column) => column,
+		).filter(
+			(column) =>
+				!addressBounds ||
+				fieldLeft + (column + 1) * columnWidth <= addressBounds.left ||
+				fieldLeft + column * columnWidth >= addressBounds.right,
+		);
+		const count = Math.min(maximumTraces, columns.length);
+		while (traces.length > count) {
+			const trace = traces.pop()!;
+			trace.animation.cancel();
+			trace.element.remove();
 		}
-		previousFrameTime = frameTime;
-		if (timeSincePaint >= frameInterval - 0.001) {
-			timeSincePaint =
-				Math.max(0, timeSincePaint - frameInterval) % frameInterval;
-			paint();
+		for (let index = 0; index < count; index += 1) {
+			const trace = traces[index] ?? createTrace(height, index);
+			traces[index] = trace;
+			const column =
+				columns[Math.floor((index * columns.length) / count)];
+			trace.element.style.left = `${column * columnWidth + (columnWidth - traceWidth) / 2}px`;
 		}
-		if (!reducedMotion.matches) {
-			animationFrame = browser.requestAnimationFrame(draw);
-		}
+		updateMotion();
 	}
 
-	resize();
-	if (!reducedMotion.matches) {
-		animationFrame = browser.requestAnimationFrame(draw);
-	}
-	browser.addEventListener("resize", resize);
-	browser.addEventListener("scroll", invalidateAddressLane, {
-		passive: true,
+	const observer = new browser.IntersectionObserver(([entry]) => {
+		isVisible = entry.isIntersecting;
+		updateMotion();
 	});
+	layout();
+	observer.observe(field);
+	browser.addEventListener("resize", layout);
+	browser.addEventListener("scroll", layout, { passive: true });
+	document.addEventListener("visibilitychange", updateMotion);
+	reducedMotion.addEventListener("change", updateMotion);
 
 	return () => {
-		browser.cancelAnimationFrame(animationFrame);
-		browser.removeEventListener("resize", resize);
-		browser.removeEventListener("scroll", invalidateAddressLane);
+		observer.disconnect();
+		browser.removeEventListener("resize", layout);
+		browser.removeEventListener("scroll", layout);
+		document.removeEventListener("visibilitychange", updateMotion);
+		reducedMotion.removeEventListener("change", updateMotion);
+		for (const trace of traces) trace.animation.cancel();
+		field.replaceChildren();
 	};
 }

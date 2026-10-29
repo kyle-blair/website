@@ -1,399 +1,340 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { suite, test, type TestContext } from "node:test";
+import { JSDOM } from "jsdom";
 import { startSignalField } from "../src/components/signal-field-animation.ts";
-
-type Glyph = {
-	character: string;
-	x: number;
-	y: number;
-	color?: string;
-	alpha?: number;
-};
+import { fallingCharacterSpeed } from "../src/components/falling-character-speed.ts";
 
 function mountSignalField(
 	context: TestContext,
-	reducedMotion = false,
-	glyphContextAvailable = true,
+	{ width = 300, height = 600, hidden = false, reducedMotion = false } = {},
 ) {
-	let glyphs: Glyph[] = [];
-	let canvasResets = 0;
-	let paints = 0;
-	let textDraws = 0;
-	let layoutReads = 0;
-	let addressLeft: number | undefined;
-	const atlasGlyphs: Glyph[] = [];
-	const atlasContext = {
-		fillStyle: "",
-		setTransform() {},
-		fillText(character: string, x: number, y: number) {
-			textDraws += 1;
-			atlasGlyphs.push({ character, x, y, color: this.fillStyle });
-		},
-	};
-	const atlas = {
-		width: 0,
-		height: 0,
-		getContext: () => (glyphContextAvailable ? atlasContext : null),
-	};
-	let nextFrame = 0;
-	let cleanup: (() => void) | undefined;
-	const frames = new Map<number, FrameRequestCallback>();
-	const listeners = new Map<string, () => void>();
-	const drawingContext = {
-		globalAlpha: 1,
-		setTransform() {},
-		fillRect() {
-			paints += 1;
-			glyphs = [];
-		},
-		fillText(character: string, x: number, y: number) {
-			textDraws += 1;
-			glyphs.push({ character, x, y });
-		},
-		drawImage(
-			image: unknown,
-			sourceX: number,
-			sourceY: number,
-			sourceWidth: number,
-			sourceHeight: number,
-			x: number,
-			y: number,
-			width: number,
-			height: number,
-		) {
-			assert.equal(image, atlas);
-			assert.equal(sourceWidth, width * browser.devicePixelRatio);
-			assert.equal(sourceHeight, height * browser.devicePixelRatio);
-			const glyph = atlasGlyphs.findLast(
-				(glyph) =>
-					glyph.x ===
-						sourceX / browser.devicePixelRatio + width / 2 &&
-					glyph.y ===
-						sourceY / browser.devicePixelRatio + height * 0.75,
-			);
-			assert.ok(glyph, "the glyph has been rendered in the atlas");
-			glyphs.push({
-				character: glyph.character,
-				x: x + width / 2,
-				y: y + height * 0.75,
-				color: glyph.color,
-				alpha: this.globalAlpha,
-			});
-		},
-	};
-	let bitmapWidth = 0;
-	let bitmapHeight = 0;
-	const canvas = {
-		ownerDocument: {
-			createElement(name: string) {
-				assert.equal(name, "canvas");
-				return atlas;
+	const dom = new JSDOM('<div class="signal-field"></div>', {
+		pretendToBeVisual: true,
+	});
+	const browser = dom.window;
+	const document = browser.document;
+	const field = document.querySelector<HTMLDivElement>(".signal-field")!;
+	const animations: {
+		element: Element;
+		keyframes: Keyframe[];
+		options: KeyframeAnimationOptions;
+		currentTime: number;
+		playState: string;
+		pause(): void;
+		play(): void;
+		cancel(): void;
+	}[] = [];
+	const media = new browser.EventTarget();
+	Object.defineProperty(media, "matches", { get: () => reducedMotion });
+	browser.matchMedia = () => media as unknown as MediaQueryList;
+	Object.defineProperty(document, "hidden", { get: () => hidden });
+	Object.defineProperty(field, "clientWidth", { get: () => width });
+	Object.defineProperty(field, "clientHeight", { get: () => height });
+	field.getBoundingClientRect = () => ({ left: 30 }) as DOMRect;
+	const frameRequests = context.mock.method(browser, "requestAnimationFrame");
+	const intervals = context.mock.method(browser, "setInterval");
+	let intersection!: IntersectionObserverCallback;
+	let disconnected = false;
+	browser.IntersectionObserver = class {
+		constructor(callback: IntersectionObserverCallback) {
+			intersection = callback;
+		}
+		observe(element: Element) {
+			assert.equal(element, field);
+		}
+		disconnect() {
+			disconnected = true;
+		}
+	} as unknown as typeof IntersectionObserver;
+	browser.Element.prototype.animate = function (keyframes, options) {
+		const animation = {
+			element: this,
+			keyframes: keyframes as Keyframe[],
+			options: options as KeyframeAnimationOptions,
+			currentTime: 0,
+			playState: "running",
+			pause() {
+				this.playState = "paused";
 			},
-			querySelector(selector: string) {
-				layoutReads += 1;
-				assert.equal(selector, ".network-address-stream__window");
-				return addressLeft === undefined
-					? null
-					: {
-							getBoundingClientRect: () => ({
-								left: addressLeft!,
-								right: addressLeft! + 16,
-							}),
-						};
+			play() {
+				this.playState = "running";
 			},
-		},
-		getBoundingClientRect: () => ({ left: 30, top: 50 }),
-		clientWidth: 300,
-		clientHeight: 600,
-		get width() {
-			return bitmapWidth;
-		},
-		set width(value: number) {
-			bitmapWidth = value;
-			canvasResets += 1;
-			glyphs = [];
-		},
-		get height() {
-			return bitmapHeight;
-		},
-		set height(value: number) {
-			bitmapHeight = value;
-			canvasResets += 1;
-			glyphs = [];
-		},
-		getContext: () => drawingContext,
-	};
-	const browser = {
-		devicePixelRatio: 2,
-		matchMedia: () => ({
-			get matches() {
-				return reducedMotion;
+			cancel() {
+				this.playState = "idle";
 			},
-		}),
-		getComputedStyle: () => ({ backgroundColor: "#070609" }),
-		requestAnimationFrame(callback: FrameRequestCallback) {
-			frames.set(++nextFrame, callback);
-			return nextFrame;
-		},
-		cancelAnimationFrame(identifier: number) {
-			frames.delete(identifier);
-		},
-		addEventListener(event: string, listener: () => void) {
-			listeners.set(event, listener);
-		},
-		removeEventListener(event: string, listener: () => void) {
-			if (listeners.get(event) === listener) listeners.delete(event);
-		},
+		};
+		animations.push(animation);
+		return animation as unknown as Animation;
 	};
 	let randomValue = 0.2;
 	const random = () => {
 		randomValue = (randomValue + 0.137) % 1;
 		return randomValue;
 	};
-	cleanup = startSignalField(
-		canvas as unknown as HTMLCanvasElement,
-		browser as unknown as Window,
+	const cleanup = startSignalField(
+		field,
+		browser as unknown as Window & typeof globalThis,
 		random,
 	);
-	context.after(() => cleanup?.());
-
+	context.after(() => {
+		cleanup();
+		dom.window.close();
+	});
 	return {
-		canvas,
+		field,
 		browser,
-		frames,
-		listeners,
-		get paints() {
-			return paints;
+		document,
+		animations,
+		frameRequests,
+		intervals,
+		get disconnected() {
+			return disconnected;
 		},
-		get textDraws() {
-			return textDraws;
+		get traces() {
+			return [...field.children] as HTMLElement[];
 		},
-		get layoutReads() {
-			return layoutReads;
-		},
-		get atlasGlyphs() {
-			return atlasGlyphs;
+		resize(nextWidth = width, nextHeight = height) {
+			width = nextWidth;
+			height = nextHeight;
+			browser.dispatchEvent(new browser.Event("resize"));
 		},
 		setAddressLane(left?: number) {
-			addressLeft = left;
+			document.querySelector(".network-address-stream__window")?.remove();
+			if (left !== undefined) {
+				const address = document.createElement("button");
+				address.className = "network-address-stream__window";
+				address.getBoundingClientRect = () =>
+					({ left, right: left + 16 }) as DOMRect;
+				document.body.append(address);
+			}
+			browser.dispatchEvent(new browser.Event("scroll"));
 		},
-		get canvasResets() {
-			return canvasResets;
-		},
-		get glyphs() {
-			return glyphs;
-		},
-		frame(time: number) {
-			assert.equal(
-				frames.size,
-				1,
-				"exactly one animation frame is pending",
+		setVisible(visible: boolean) {
+			intersection(
+				[{ isIntersecting: visible }] as IntersectionObserverEntry[],
+				{} as IntersectionObserver,
 			);
-			const [identifier, callback] = [...frames][0];
-			frames.delete(identifier);
-			callback(time);
-			assert.ok(glyphs.length > 0, "the frame draws visible characters");
-			return glyphs;
+		},
+		setHidden(value: boolean) {
+			hidden = value;
+			document.dispatchEvent(new browser.Event("visibilitychange"));
 		},
 		setReducedMotion(value: boolean) {
 			reducedMotion = value;
+			media.dispatchEvent(new browser.Event("change"));
 		},
-		scroll() {
-			listeners.get("scroll")?.();
-		},
-		resize() {
-			const listener = listeners.get("resize");
-			assert.ok(listener, "the resize listener is registered");
-			listener();
-		},
-		unmount() {
-			cleanup?.();
-			cleanup = undefined;
-		},
+		unmount: cleanup,
 	};
 }
 
 suite("Signal field", () => {
-	test("a canvas without a two-dimensional context leaves the animation inactive", () => {
-		const canvas = {
-			getContext: () => null,
-		} as unknown as HTMLCanvasElement;
-		assert.equal(startSignalField(canvas, {} as Window), undefined);
-	});
-	test("scroll-related window resizes leave an unchanged canvas and its characters intact", (context) => {
-		const animation = mountSignalField(context);
-		const before = animation.frame(100);
-		const resets = animation.canvasResets;
-
-		for (let count = 0; count < 20; count += 1) animation.resize();
-
-		assert.equal(animation.canvasResets, resets);
-		assert.deepEqual(animation.glyphs, before);
-		assert.deepEqual(animation.frame(100), before);
-	});
-
-	test("actual canvas resizing preserves existing columns and adds new ones", (context) => {
-		const animation = mountSignalField(context);
-		const before = animation.frame(100);
-		const originalWidth = animation.canvas.clientWidth;
-		animation.canvas.clientHeight += 40;
-		animation.resize();
-		assert.equal(animation.canvas.height, 1280);
-		assert.deepEqual(animation.frame(100), before);
-
-		animation.canvas.clientWidth += 30;
-		animation.resize();
-		assert.equal(animation.canvas.width, 660);
-		const after = animation.frame(100);
-		assert.deepEqual(
-			after.filter(({ x }) => x < originalWidth),
-			before,
-		);
-		assert.ok(after.some(({ x }) => x > originalWidth));
-	});
-
-	test("changing pixel density updates the bitmap without resetting the animation", (context) => {
-		const animation = mountSignalField(context);
-		const before = animation.frame(100);
-		animation.browser.devicePixelRatio = 1;
-		animation.resize();
-		assert.equal(animation.canvas.width, 300);
-		assert.equal(animation.canvas.height, 600);
-		assert.deepEqual(animation.frame(100), before);
-	});
-
-	test("the first animation frame does not jump to the browser's elapsed time", (context) => {
-		const animation = mountSignalField(context);
-		const before = animation.glyphs;
-		assert.deepEqual(animation.frame(60_000), before);
-	});
-
-	test("a two-second drawing pause advances at most 50 milliseconds and then resumes normally", (context) => {
-		const paused = mountSignalField(context);
-		const reference = mountSignalField(context);
-		paused.frame(100);
-		reference.frame(100);
-		const before = paused.frame(140);
-		reference.frame(140);
-
-		const resumed = paused.frame(2140);
-		assert.deepEqual(resumed, reference.frame(190));
-		assert.ok(
-			resumed[0].y > before[0].y,
-			"the animation still moves forward",
-		);
-		assert.deepEqual(paused.frame(2180), reference.frame(230));
-	});
-
-	for (const refreshRate of [60, 120, 144]) {
-		test(`paints at most 30 frames per second on a ${refreshRate} Hz display without changing speed`, (context) => {
-			const animation = mountSignalField(context);
-			const reference = mountSignalField(context);
-			animation.frame(0);
-			reference.frame(0);
-			const initialPaints = animation.paints;
-			for (let frame = 1; frame <= refreshRate; frame += 1) {
-				animation.frame((frame * 1000) / refreshRate);
-			}
-			for (let frame = 1; frame <= 30; frame += 1) {
-				reference.frame((frame * 1000) / 30);
-			}
-			assert.equal(animation.paints - initialPaints, 30);
-			assert.equal(reference.paints - initialPaints, 30);
-			assert.equal(
-				animation.glyphs[0].character,
-				reference.glyphs[0].character,
+	test("moves pre-rendered character strips using native transforms without a canvas, frame callbacks, or timers", (context) => {
+		const field = mountSignalField(context);
+		assert.equal(field.traces.length, 10);
+		assert.equal(field.field.querySelectorAll("canvas").length, 0);
+		assert.equal(field.frameRequests.mock.callCount(), 0);
+		assert.equal(field.intervals.mock.callCount(), 0);
+		for (const animation of field.animations) {
+			assert.equal(animation.playState, "running");
+			assert.equal(animation.options.iterations, Infinity);
+			assert.equal(animation.options.easing, "linear");
+			assert.ok(animation.currentTime > 0);
+			assert.ok(
+				animation.currentTime < Number(animation.options.duration),
 			);
 			assert.ok(
-				Math.abs(animation.glyphs[0].y - reference.glyphs[0].y) <
-					0.000001,
+				animation.keyframes.every(
+					(frame) => Object.keys(frame).join() === "transform",
+				),
 			);
-		});
-	}
-
-	test("reuses rendered glyphs until pixel density changes", (context) => {
-		const animation = mountSignalField(context);
-		const initialTextDraws = animation.textDraws;
-		assert.ok(initialTextDraws > 0);
-		animation.frame(0);
-		for (let frame = 1; frame <= 120; frame += 1)
-			animation.frame((frame * 1000) / 120);
-		assert.equal(animation.textDraws, initialTextDraws);
-		assert.ok(
-			animation.glyphs.some(
-				({ color }) => color === "rgb(100, 255, 152)",
-			),
-		);
-		assert.ok(
-			animation.glyphs.some(
-				({ color }) => color === "rgb(157, 124, 255)",
-			),
-		);
-		assert.ok(
-			animation.glyphs.every(
-				({ alpha }) => alpha! >= 0.04 && alpha! <= 0.8,
-			),
-		);
-		animation.canvas.clientWidth += 30;
-		animation.resize();
-		assert.equal(animation.textDraws, initialTextDraws);
-		animation.browser.devicePixelRatio = 1;
-		animation.resize();
-		assert.equal(animation.textDraws, initialTextDraws * 2);
-	});
-
-	test("stops scheduling frames when reduced motion is enabled during animation", (context) => {
-		const animation = mountSignalField(context);
-		animation.frame(0);
-		animation.setReducedMotion(true);
-		animation.frame(40);
-		assert.equal(animation.frames.size, 0);
-	});
-	test("an unavailable glyph context leaves the animation inactive", (context) => {
-		const animation = mountSignalField(context, false, false);
-		assert.equal(animation.frames.size, 0);
-		assert.equal(animation.listeners.size, 0);
-		assert.equal(animation.paints, 0);
-	});
-
-	test("reduced motion draws a static frame and repaints after resizing", (context) => {
-		const still = mountSignalField(context, true);
-		assert.ok(still.glyphs.length > 0);
-		assert.equal(still.frames.size, 0);
-		const paints = still.paints;
-		still.canvas.clientHeight += 40;
-		still.resize();
-		assert.equal(still.paints, paints + 1);
-		assert.ok(still.glyphs.length > 0);
-		still.unmount();
-		assert.equal(still.listeners.size, 0);
-
-		const moving = mountSignalField(context);
-		assert.equal(moving.frames.size, 1);
-		moving.unmount();
-		assert.equal(moving.frames.size, 0);
-		assert.equal(moving.listeners.size, 0);
-	});
-
-	test("keeps the address lane clear without reading layout during unchanged animation frames", (context) => {
-		const animation = mountSignalField(context);
-		animation.setAddressLane(100);
-		animation.resize();
-		const glyphs = animation.frame(100);
-		assert.ok(glyphs.some(({ x }) => x === 45));
-		assert.ok(glyphs.every(({ x }) => x !== 75));
-		const layoutReads = animation.layoutReads;
-		for (let time = 140; time <= 940; time += 40) {
-			assert.ok(animation.frame(time).every(({ x }) => x !== 75));
+			assert.equal(animation.keyframes[1].transform, "translateY(600px)");
+			const length = animation.element.children.length;
+			assert.ok(length >= 3 && length <= 11);
+			assert.equal(
+				animation.keyframes[0].transform,
+				`translateY(-${length * 24}px)`,
+			);
+			const speed =
+				(600 + length * 24) /
+				(Number(animation.options.duration) / 1000);
+			assert.ok(
+				speed >= fallingCharacterSpeed * 0.35 &&
+					speed <= fallingCharacterSpeed * 1.15,
+			);
+			assert.match(animation.element.textContent!, /^[042/<>{}:]+$/);
 		}
-		assert.equal(animation.layoutReads, layoutReads);
-		animation.setAddressLane(70);
-		animation.scroll();
-		const movedGlyphs = animation.frame(980);
-		assert.ok(movedGlyphs.every(({ x }) => x !== 45));
-		assert.ok(movedGlyphs.some(({ x }) => x === 75));
-		animation.setAddressLane();
-		animation.resize();
-		assert.ok(animation.frame(1020).some(({ x }) => x === 45));
+	});
+
+	test("bounds the number and size of moving strips on large, high-density displays", (context) => {
+		const field = mountSignalField(context, { width: 3840, height: 2160 });
+		const stylesheet = field.document.createElement("style");
+		stylesheet.textContent = readFileSync(
+			new URL("../src/app/globals.css", import.meta.url),
+			"utf8",
+		);
+		field.document.head.append(stylesheet);
+		assert.equal(field.traces.length, 24);
+		const movingArea = field.traces.reduce((area, trace) => {
+			const style = field.browser.getComputedStyle(trace);
+			assert.equal(style.position, "absolute");
+			assert.equal(style.width, "12px");
+			return (
+				area +
+				Number.parseFloat(style.width) * trace.children.length * 24
+			);
+		}, 0);
+		assert.ok(movingArea <= 24 * 12 * 11 * 24);
+		assert.ok(movingArea < 3840 * 2160 * 0.01);
+		assert.equal(
+			field.browser.getComputedStyle(field.field).overflow,
+			"hidden",
+		);
+		assert.notEqual(
+			field.browser.getComputedStyle(field.field).opacity,
+			"0.72",
+		);
+		assert.ok(
+			field.traces.some((trace) =>
+				trace
+					.firstElementChild!.getAttribute("style")!
+					.includes("100, 255, 152"),
+			),
+		);
+	});
+
+	test("preserves animation identity, timing, and phase across vertical resizes and scrolling", (context) => {
+		const field = mountSignalField(context);
+		const before = field.animations.map((animation) => ({
+			keyframes: structuredClone(animation.keyframes),
+			options: structuredClone(animation.options),
+			time: animation.currentTime,
+		}));
+		for (let index = 0; index < 20; index += 1) {
+			field.resize(300, 600 + index * 10);
+			field.browser.dispatchEvent(new field.browser.Event("scroll"));
+		}
+		assert.equal(field.animations.length, before.length);
+		for (const [index, animation] of field.animations.entries()) {
+			assert.deepEqual(animation.keyframes, before[index].keyframes);
+			assert.deepEqual(animation.options, before[index].options);
+			assert.equal(animation.currentTime, before[index].time);
+		}
+	});
+
+	test("adds and removes streams on horizontal resize while retaining surviving animations", (context) => {
+		const field = mountSignalField(context);
+		const first = field.traces[0];
+		field.resize(330);
+		assert.equal(field.traces.length, 11);
+		assert.equal(field.traces[0], first);
+		field.resize(120);
+		assert.equal(field.traces.length, 4);
+		assert.equal(field.traces[0], first);
+		assert.ok(
+			field.animations
+				.slice(4)
+				.every((animation) => animation.playState === "idle"),
+		);
+	});
+
+	test("reserves the full address column and updates it after scrolling or resizing", (context) => {
+		const field = mountSignalField(context);
+		const centers = () =>
+			field.traces.map(
+				(trace) => Number.parseFloat(trace.style.left) + 6,
+			);
+		field.setAddressLane(100);
+		assert.ok(centers().includes(45));
+		assert.ok(!centers().includes(75));
+		field.setAddressLane(70);
+		assert.ok(!centers().includes(45));
+		assert.ok(centers().includes(75));
+		field.setAddressLane();
+		field.resize();
+		assert.ok(centers().includes(45));
+	});
+
+	test("pauses when hidden or offscreen and resumes only when both are visible", (context) => {
+		const field = mountSignalField(context);
+		const assertState = (state: string) =>
+			assert.ok(
+				field.animations.every(
+					(animation) => animation.playState === state,
+				),
+			);
+		field.setVisible(false);
+		assertState("paused");
+		field.setHidden(true);
+		field.setVisible(true);
+		assertState("paused");
+		field.setHidden(false);
+		assertState("running");
+		field.setHidden(true);
+		assertState("paused");
+		field.setVisible(false);
+		field.setHidden(false);
+		assertState("paused");
+		field.setVisible(true);
+		assertState("running");
+	});
+
+	test("starts paused in a hidden document", (context) => {
+		const field = mountSignalField(context, { hidden: true });
+		assert.ok(
+			field.animations.every(
+				(animation) => animation.playState === "paused",
+			),
+		);
+	});
+
+	test("honors reduced motion at startup and when the preference changes", (context) => {
+		const field = mountSignalField(context, { reducedMotion: true });
+		assert.ok(
+			field.animations.every(
+				(animation) => animation.playState === "paused",
+			),
+		);
+		assert.ok(field.traces.every((trace) => trace.textContent!.length > 0));
+		field.setReducedMotion(false);
+		assert.ok(
+			field.animations.every(
+				(animation) => animation.playState === "running",
+			),
+		);
+		field.setReducedMotion(true);
+		assert.ok(
+			field.animations.every(
+				(animation) => animation.playState === "paused",
+			),
+		);
+	});
+
+	test("waits for horizontal space before creating streams", (context) => {
+		const field = mountSignalField(context, { width: 0 });
+		assert.equal(field.traces.length, 0);
+		field.resize(300);
+		assert.equal(field.traces.length, 10);
+	});
+
+	test("cancels animations, disconnects observation, removes listeners, and clears its elements on unmount", (context) => {
+		const field = mountSignalField(context);
+		field.unmount();
+		assert.equal(field.traces.length, 0);
+		assert.equal(field.disconnected, true);
+		assert.ok(
+			field.animations.every(
+				(animation) => animation.playState === "idle",
+			),
+		);
+		field.resize(330);
+		field.setHidden(true);
+		field.setReducedMotion(true);
+		assert.equal(field.traces.length, 0);
+		assert.ok(
+			field.animations.every(
+				(animation) => animation.playState === "idle",
+			),
+		);
 	});
 });

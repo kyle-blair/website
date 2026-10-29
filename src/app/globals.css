@@ -264,12 +264,32 @@ textarea {
 .signal-field {
 	position: sticky;
 	display: block;
-	top: 0;
+	top: var(--header-height);
 	width: 100%;
-	height: 100svh;
+	height: calc(100svh - var(--header-height));
+	overflow: hidden;
 	background: var(--background);
 }
 
+.signal-field__trace {
+	position: absolute;
+	top: 0;
+	display: flex;
+	flex-direction: column-reverse;
+	width: 12px;
+	color: var(--accent);
+	font:
+		12px / 24px "SFMono-Regular",
+		Consolas,
+		monospace;
+	text-align: center;
+}
+
+.signal-field__trace > span {
+	display: block;
+	height: 24px;
+	flex-shrink: 0;
+}
 .hero__content {
 	position: relative;
 	z-index: 2;
@@ -913,7 +933,7 @@ main:has(> .blog-article-page)::before {
 		padding-block: 4.5rem;
 	}
 
-	.signal-field {
+	.signal-field__trace {
 		opacity: 0.72;
 	}
 

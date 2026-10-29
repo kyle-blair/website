@@ -1,18 +1,16 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { startSignalField } from "./signal-field-animation";
+import { startSignalField } from "./signal-field-animation.ts";
 
 export function SignalField() {
-	const canvasRef = useRef<HTMLCanvasElement>(null);
+	const fieldRef = useRef<HTMLDivElement>(null);
 
 	useEffect(() => {
-		const canvas = canvasRef.current;
-		if (!canvas) return;
-		return startSignalField(canvas);
+		const field = fieldRef.current;
+		if (!field) return;
+		return startSignalField(field);
 	}, []);
 
-	return (
-		<canvas className="signal-field" ref={canvasRef} aria-hidden="true" />
-	);
+	return <div className="signal-field" ref={fieldRef} aria-hidden="true" />;
 }
