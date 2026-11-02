@@ -13,7 +13,7 @@ registerHooks({
 				shortCircuit: true,
 				source: "export function registerOTel(config) {if(globalThis.registrationFailure) throw globalThis.registrationFailure; globalThis.registrations.push(config);}",
 			};
-		if (url.endsWith("/shared/telemetry.ts"))
+		if (url.endsWith("/src/app/telemetry/telemetry.ts"))
 			return {
 				format: "module",
 				shortCircuit: true,
@@ -78,7 +78,7 @@ test("logs telemetry initialization failures with their original error details",
 	);
 	const logged = context.mock.method(console, "log", () => {});
 	const { registerTelemetry } =
-		await import("../src/instrumentation.node.ts");
+		await import("../src/app/telemetry/instrumentation.node.ts");
 	assert.doesNotThrow(() => registerTelemetry());
 	assert.equal(logged.mock.callCount(), 1);
 	const record = JSON.parse(logged.mock.calls[0].arguments[0]);
@@ -108,7 +108,7 @@ test("reports absent optional telemetry configuration at the information level",
 	const errors = context.mock.method(console, "error", () => {});
 	const before = registrations.length;
 	const { registerTelemetry } =
-		await import("../src/instrumentation.node.ts");
+		await import("../src/app/telemetry/instrumentation.node.ts");
 	registerTelemetry();
 	assert.equal(registrations.length, before);
 	assert.equal(warnings.mock.callCount(), 0);
@@ -143,7 +143,7 @@ for (const signal of ["TRACES", "METRICS", "LOGS"] as const) {
 			"http://127.0.0.1:1";
 		const logged = context.mock.method(console, "log", () => {});
 		const { registerTelemetry } =
-			await import("../src/instrumentation.node.ts");
+			await import("../src/app/telemetry/instrumentation.node.ts");
 		const before = registrations.length;
 		registerTelemetry();
 		assert.equal(registrations.length, before + 1);
@@ -198,7 +198,7 @@ test("keeps configured traces and logs when the telemetry library rejects metric
 	const logged = context.mock.method(console, "log", () => {});
 
 	const { registerTelemetry } =
-		await import("../src/instrumentation.node.ts");
+		await import("../src/app/telemetry/instrumentation.node.ts");
 	const before = registrations.length;
 	registerTelemetry();
 	assert.equal(registrations.length, before + 1);

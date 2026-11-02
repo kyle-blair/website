@@ -10,7 +10,6 @@ RUN npm clean-install --include=dev
 
 COPY next.config.ts tsconfig.json ./
 COPY src ./src
-COPY shared ./shared
 RUN npm run build
 
 FROM node:24.22.1-bookworm-slim AS runner

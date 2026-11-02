@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { suite, test } from "node:test";
-import { NetworkAddressView } from "../src/components/network-address-view.ts";
-import { NetworkAddress } from "../src/domain/network-address.ts";
+import { NetworkAddressView } from "../src/app/site-visitor/network-address-view.ts";
+import { NetworkAddress } from "../src/app/site-visitor/network-address.ts";
 
 suite("NetworkAddressView", () => {
 	test("uses an accessible matrix-style signal while loading", () => {

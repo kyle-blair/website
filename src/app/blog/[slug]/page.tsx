@@ -3,7 +3,7 @@ import { ArrowLeft } from "lucide-react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getPost, getPosts } from "../posts";
-import { Feedback } from "@/components/feedback";
+import { Feedback } from "@/feedback/feedback-controls";
 
 type Props = { params: Promise<{ slug: string }> };
 

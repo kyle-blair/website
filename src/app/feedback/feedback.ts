@@ -1,4 +1,4 @@
-import type { CounterStore } from "./counter-store.ts";
+import type { CounterStore } from "../counters/counter-store.ts";
 
 export type Reaction = "like" | "dislike";
 

@@ -1,7 +1,10 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { metrics } from "@opentelemetry/api";
-import { initializeMetrics, recordOperation } from "../shared/telemetry.ts";
+import {
+	initializeMetrics,
+	recordOperation,
+} from "../src/app/telemetry/telemetry.ts";
 import {
 	AggregationTemporality,
 	DataPointType,

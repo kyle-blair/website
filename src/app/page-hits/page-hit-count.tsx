@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { readPageHitCount } from "../infrastructure/browser-page-hits.ts";
+import { readPageHitCount } from "./browser-page-hits.ts";
 
 type CountState =
 	| { status: "loading" }

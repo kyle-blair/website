@@ -17,7 +17,6 @@ COPY containers/integration/storage.conf /home/runner/.config/containers/storage
 WORKDIR /workspace
 COPY --chown=runner:runner .dockerignore compose.yaml containerfile package.json package-lock.json next.config.ts tsconfig.json ./
 COPY --chown=runner:runner src ./src
-COPY --chown=runner:runner shared ./shared
 COPY --chown=runner:runner database ./database
 COPY --chown=runner:runner test/integration ./test/integration
 COPY --chown=runner:runner containers/integration ./containers/integration

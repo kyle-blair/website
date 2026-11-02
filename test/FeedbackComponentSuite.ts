@@ -6,7 +6,7 @@ import { createRoot } from "react-dom/client";
 import { renderToString } from "react-dom/server";
 import { JSDOM } from "jsdom";
 
-const { Feedback } = await import("../src/components/feedback.tsx");
+const { Feedback } = await import("../src/app/feedback/feedback-controls.tsx");
 const subject = "item:example:first";
 
 suite("Feedback component", () => {

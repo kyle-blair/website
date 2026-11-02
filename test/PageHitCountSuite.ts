@@ -5,7 +5,8 @@ import { createRoot } from "react-dom/client";
 import { renderToString } from "react-dom/server";
 import { JSDOM } from "jsdom";
 
-const { PageHitCount } = await import("../src/components/page-hit-count.tsx");
+const { PageHitCount } =
+	await import("../src/app/page-hits/page-hit-count.tsx");
 
 suite("Page hit count", () => {
 	async function mount(
@@ -406,7 +407,7 @@ suite("Page hit count", () => {
 		await render(null);
 		requests.length = 0;
 		const { readPageHitCount } =
-			await import("../src/infrastructure/browser-page-hits.ts");
+			await import("../src/app/page-hits/browser-page-hits.ts");
 		assert.deepEqual(
 			await Promise.all([
 				readPageHitCount("/blog", new AbortController().signal),

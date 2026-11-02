@@ -115,8 +115,9 @@ export async function observe<T>(
 			async (span) => {
 				const started = performance.now();
 				let outcome = "success";
+				let result: T;
 				try {
-					const result = await action();
+					result = await action();
 					if (result instanceof Response) {
 						span.setAttribute(
 							"http.response.status_code",
@@ -127,7 +128,6 @@ export async function observe<T>(
 							recordFailure(operation);
 						}
 					}
-					return result;
 				} catch (error) {
 					outcome = "error";
 					recordFailure(operation, error);
@@ -141,6 +141,7 @@ export async function observe<T>(
 					);
 					span.end();
 				}
+				return result;
 			},
 		);
 }

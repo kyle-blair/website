@@ -1,4 +1,4 @@
-import type { Reaction } from "../domain/feedback.ts";
+import type { Reaction } from "./feedback.ts";
 
 export type FeedbackVote = {
 	reaction: Reaction;

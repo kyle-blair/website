@@ -7,7 +7,7 @@ import {
 	type ReadableSpan,
 } from "@opentelemetry/sdk-trace";
 import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-proto";
-import { PrivacyFilteringTraceExporter } from "../shared/telemetry-export.ts";
+import { PrivacyFilteringTraceExporter } from "../src/app/telemetry/telemetry-export.ts";
 
 test("exports useful trace diagnostics while removing private attributes, events, links, and messages", async (context) => {
 	const spans: ReadableSpan[] = [];

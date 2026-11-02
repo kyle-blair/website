@@ -1,6 +1,6 @@
 import { connection } from "next/server";
-import { NetworkAddress } from "@/domain/network-address";
-import { SiteVisitor } from "@/domain/site-visitor";
+import { NetworkAddress } from "@/site-visitor/network-address";
+import { SiteVisitor } from "@/site-visitor/site-visitor";
 
 export async function GET(request: Request) {
 	await connection();

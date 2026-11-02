@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { PageHitCount } from "./page-hit-count.tsx";
+import { PageHitCount } from "./page-hits/page-hit-count.tsx";
 
 type Page = { path: string; title: string };
 

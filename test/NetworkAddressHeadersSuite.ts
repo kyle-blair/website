@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { suite, test } from "node:test";
-import { NetworkAddress } from "../src/domain/network-address.ts";
+import { NetworkAddress } from "../src/app/site-visitor/network-address.ts";
 
 suite("NetworkAddress.fromHeaders", () => {
 	test("returns the original address from a forwarded address chain", () => {

@@ -2,11 +2,11 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { suite, test } from "node:test";
 import { PGlite } from "@electric-sql/pglite";
-import { PostgreSQLCounterStore } from "../src/infrastructure/postgresql-counter-store.ts";
+import { PostgreSQLCounterStore } from "../src/app/counters/postgresql-counter-store.ts";
 import {
 	CounterAdjustmentConflict,
 	type DatabasePool,
-} from "../src/infrastructure/postgresql-counter-store.ts";
+} from "../src/app/counters/postgresql-counter-store.ts";
 
 async function fixture(context: {
 	after: (callback: () => Promise<void>) => void;

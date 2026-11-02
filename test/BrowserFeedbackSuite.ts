@@ -4,7 +4,7 @@ import { JSDOM } from "jsdom";
 import {
 	readFeedbackSelections,
 	saveFeedbackSelections,
-} from "../src/infrastructure/browser-feedback.ts";
+} from "../src/app/feedback/browser-feedback.ts";
 
 test("stores independent choices and pending operations without a browser identifier", (context) => {
 	const dom = new JSDOM("", { url: "https://website.example" });

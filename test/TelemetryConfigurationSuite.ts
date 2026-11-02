@@ -5,7 +5,7 @@ import {
 	DefaultMetricReader,
 	DefaultLogProcessor,
 	TelemetryEndpointNotConfiguredError,
-} from "../shared/telemetry-export.ts";
+} from "../src/app/telemetry/telemetry-export.ts";
 
 for (const setting of [
 	undefined,

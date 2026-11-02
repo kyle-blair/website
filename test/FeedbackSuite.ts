@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { suite, test } from "node:test";
-import { FeedbackTotals, Feedback } from "../src/domain/feedback.ts";
-import type { CounterStore } from "../src/domain/counter-store.ts";
+import { FeedbackTotals, Feedback } from "../src/app/feedback/feedback.ts";
+import type { CounterStore } from "../src/app/counters/counter-store.ts";
 
 suite("Feedback", () => {
 	test("withdraws reactions independently through signed counter adjustments", async () => {

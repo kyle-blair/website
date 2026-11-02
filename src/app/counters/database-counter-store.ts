@@ -1,7 +1,7 @@
 import { Pool } from "pg";
-import type { CounterStore } from "../domain/counter-store.ts";
+import type { CounterStore } from "./counter-store.ts";
 import { PostgreSQLCounterStore } from "./postgresql-counter-store.ts";
-import { recordFailure } from "../../shared/telemetry.ts";
+import { recordFailure } from "../telemetry/telemetry.ts";
 
 let store: CounterStore | undefined;
 

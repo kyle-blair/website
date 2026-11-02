@@ -5,14 +5,14 @@ import { test } from "node:test";
 import { act, createElement } from "react";
 import { createRoot } from "react-dom/client";
 import { JSDOM } from "jsdom";
-import { averageFallingCharacterSpeed } from "../src/components/falling-character-speed.ts";
+import { averageFallingCharacterSpeed } from "../src/app/falling-character-speed.ts";
 
 registerHooks({
 	resolve(specifier, context, nextResolve) {
-		if (specifier === "@/domain/network-address-value")
+		if (specifier === "@/site-visitor/network-address-value")
 			return {
 				url: new URL(
-					"../src/domain/network-address-value.ts",
+					"../src/app/site-visitor/network-address-value.ts",
 					import.meta.url,
 				).href,
 				shortCircuit: true,
@@ -20,7 +20,7 @@ registerHooks({
 		if (specifier === "./network-address-view")
 			return {
 				url: new URL(
-					"../src/components/network-address-view.ts",
+					"../src/app/site-visitor/network-address-view.ts",
 					import.meta.url,
 				).href,
 				shortCircuit: true,
@@ -30,7 +30,7 @@ registerHooks({
 });
 
 const { SiteVisitorDetails } =
-	await import("../src/components/site-visitor-details.tsx");
+	await import("../src/app/site-visitor/site-visitor-details.tsx");
 
 for (const address of [
 	"::1",

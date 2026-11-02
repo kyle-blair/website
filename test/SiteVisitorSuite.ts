@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { suite, test } from "node:test";
-import { NetworkAddress } from "../src/domain/network-address.ts";
-import { SiteVisitor } from "../src/domain/site-visitor.ts";
+import { NetworkAddress } from "../src/app/site-visitor/network-address.ts";
+import { SiteVisitor } from "../src/app/site-visitor/site-visitor.ts";
 
 suite("SiteVisitor", () => {
 	test("exposes the visitor's network address", () => {

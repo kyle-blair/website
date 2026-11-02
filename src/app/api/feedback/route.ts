@@ -1,5 +1,5 @@
-import { databaseCounterStore } from "../../../infrastructure/database-counter-store.ts";
-import { observe } from "../../../../shared/telemetry.ts";
+import { databaseCounterStore } from "../../counters/database-counter-store.ts";
+import { observe } from "../../telemetry/telemetry.ts";
 import { FeedbackEndpoint } from "./feedback-endpoint.ts";
 
 const endpoint = new FeedbackEndpoint(databaseCounterStore);

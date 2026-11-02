@@ -1,5 +1,5 @@
-import type { CounterStore } from "../../../domain/counter-store.ts";
-import { Feedback } from "../../../domain/feedback.ts";
+import type { CounterStore } from "../../counters/counter-store.ts";
+import { Feedback } from "../../feedback/feedback.ts";
 import { RequestRejection, Submission } from "../submission.ts";
 
 export class FeedbackEndpoint {

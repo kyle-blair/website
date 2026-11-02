@@ -1,7 +1,7 @@
 import { PageHitsEndpoint } from "./page-hits-endpoint.ts";
-import { databaseCounterStore } from "../../../infrastructure/database-counter-store.ts";
+import { databaseCounterStore } from "../../counters/database-counter-store.ts";
 import { isPublishedPage } from "../../published-pages.ts";
-import { observe } from "../../../../shared/telemetry.ts";
+import { observe } from "../../telemetry/telemetry.ts";
 
 const endpoint = new PageHitsEndpoint(databaseCounterStore, isPublishedPage);
 

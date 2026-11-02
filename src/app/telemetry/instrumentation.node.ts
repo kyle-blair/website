@@ -1,4 +1,4 @@
-import { TelemetryInitializationLog } from "../shared/telemetry-initialization-log.ts";
+import { TelemetryInitializationLog } from "./telemetry-initialization-log.ts";
 import { registerOTel } from "@vercel/otel";
 import { UndiciInstrumentation } from "@opentelemetry/instrumentation-undici";
 import { PgInstrumentation } from "@opentelemetry/instrumentation-pg";
@@ -6,8 +6,8 @@ import {
 	DefaultTraceProcessor,
 	DefaultMetricReader,
 	DefaultLogProcessor,
-} from "../shared/telemetry-export.ts";
-import { initializeMetrics } from "../shared/telemetry.ts";
+} from "./telemetry-export.ts";
+import { initializeMetrics } from "./telemetry.ts";
 
 export function registerTelemetry() {
 	try {

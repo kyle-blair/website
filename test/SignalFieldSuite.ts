@@ -2,8 +2,8 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { suite, test, type TestContext } from "node:test";
 import { JSDOM } from "jsdom";
-import { startSignalField } from "../src/components/signal-field-animation.ts";
-import { fallingCharacterSpeed } from "../src/components/falling-character-speed.ts";
+import { startSignalField } from "../src/app/signal-field-animation.ts";
+import { fallingCharacterSpeed } from "../src/app/falling-character-speed.ts";
 
 function mountSignalField(
 	context: TestContext,

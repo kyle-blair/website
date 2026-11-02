@@ -32,8 +32,7 @@ registerHooks({
 		return nextLoad(url, context);
 	},
 });
-const { PageNavigation } =
-	await import("../src/components/page-navigation.tsx");
+const { PageNavigation } = await import("../src/app/page-navigation.tsx");
 const pages = [
 	{ path: "/", title: "home" },
 	{ path: "/blog", title: "blog" },

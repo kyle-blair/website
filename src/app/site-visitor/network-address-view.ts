@@ -1,4 +1,4 @@
-import { UNKNOWN_NETWORK_ADDRESS } from "../domain/network-address-value.ts";
+import { UNKNOWN_NETWORK_ADDRESS } from "./network-address-value.ts";
 
 export class NetworkAddressView {
 	protected static readonly loadingGlyphs = ["0", "4", "2"] as const;

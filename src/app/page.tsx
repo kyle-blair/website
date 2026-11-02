@@ -1,6 +1,6 @@
 import { ArrowDown } from "lucide-react";
-import { ScrollReveal } from "@/components/scroll-reveal";
-import { SignalField } from "@/components/signal-field";
+import { ScrollReveal } from "@/scroll-reveal";
+import { SignalField } from "@/signal-field";
 
 export default function Home() {
 	return (

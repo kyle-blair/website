@@ -1,9 +1,9 @@
 import type { Metadata, Viewport } from "next";
 import { IBM_Plex_Mono } from "next/font/google";
-import { SiteFooter } from "@/components/site-footer";
-import { SiteHeader } from "@/components/site-header";
-import { SiteVisitorDetails } from "@/components/site-visitor-details";
-import { PageNavigation } from "@/components/page-navigation";
+import { SiteFooter } from "@/site-footer";
+import { SiteHeader } from "@/site-header";
+import { SiteVisitorDetails } from "@/site-visitor/site-visitor-details";
+import { PageNavigation } from "@/page-navigation";
 import { getPosts } from "./blog/posts";
 import "./globals.css";
 

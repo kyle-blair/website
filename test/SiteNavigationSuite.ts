@@ -43,8 +43,7 @@ registerHooks({
 	},
 });
 
-const { SiteNavigation } =
-	await import("../src/components/site-navigation.tsx");
+const { SiteNavigation } = await import("../src/app/site-navigation.tsx");
 
 test("header and footer share navigation, with independent mobile menus that reset after navigation", async () => {
 	const dom = new JSDOM('<div id="root"></div>');

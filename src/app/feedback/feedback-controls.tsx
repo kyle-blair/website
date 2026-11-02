@@ -2,12 +2,12 @@
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { ThumbsUp, ThumbsDown } from "lucide-react";
-import { FeedbackTotals, type Reaction } from "../domain/feedback.ts";
+import { FeedbackTotals, type Reaction } from "./feedback.ts";
 import {
 	readFeedbackSelections,
 	saveFeedbackSelections,
 	type FeedbackVote,
-} from "../infrastructure/browser-feedback.ts";
+} from "./browser-feedback.ts";
 
 type Props = { subject: string; children?: ReactNode };
 type FeedbackState =

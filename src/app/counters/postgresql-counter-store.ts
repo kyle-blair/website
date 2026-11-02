@@ -1,7 +1,4 @@
-import type {
-	CounterAdjustment,
-	CounterStore,
-} from "../domain/counter-store.ts";
+import type { CounterAdjustment, CounterStore } from "./counter-store.ts";
 
 type QueryResult = { rows: Record<string, unknown>[] };
 

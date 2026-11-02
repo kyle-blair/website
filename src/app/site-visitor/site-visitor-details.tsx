@@ -7,9 +7,9 @@ import {
 	type CSSProperties,
 } from "react";
 
-import { UNKNOWN_NETWORK_ADDRESS } from "@/domain/network-address-value";
+import { UNKNOWN_NETWORK_ADDRESS } from "@/site-visitor/network-address-value";
 import { NetworkAddressView } from "./network-address-view";
-import { averageFallingCharacterSpeed } from "./falling-character-speed.ts";
+import { averageFallingCharacterSpeed } from "../falling-character-speed.ts";
 
 type SiteVisitorResponse = {
 	networkAddress: string;

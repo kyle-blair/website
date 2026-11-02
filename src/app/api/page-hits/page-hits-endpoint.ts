@@ -1,7 +1,7 @@
 import { inspect } from "node:util";
 import { SeverityNumber } from "@opentelemetry/api-logs";
 import { Submission, RequestRejection } from "../submission.ts";
-import type { CounterStore } from "../../../domain/counter-store.ts";
+import type { CounterStore } from "../../counters/counter-store.ts";
 
 export class PageHitsEndpoint {
 	private readonly counters: CounterStore;
