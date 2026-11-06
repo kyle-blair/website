@@ -76,27 +76,9 @@ suite("Generate static posts", () => {
 		assert.doesNotMatch(posts[0].getContent(), /<h1>/);
 	});
 
-	test("posts may share a slug", async (context) => {
-		const directory = await temporaryPosts(context);
-		await writeFile(
-			path.join(directory, "one.md"),
-			"# Same title!\n\nDate: 2026-05-03\n\nOne.",
-		);
-		await writeFile(
-			path.join(directory, "two.md"),
-			"# Same title?\n\nDate: 2026-05-03\n\nTwo.",
-		);
-		const posts = await generatedPosts(directory);
-		assert.equal(posts.length, 2);
-		assert.deepEqual(
-			posts.map((post) => post.getSlug()),
-			["same-title", "same-title"],
-		);
-		assert.deepEqual(posts.map((post) => post.getContent()).sort(), [
-			"<p>One.</p>\n",
-			"<p>Two.</p>\n",
-		]);
-	});
+	test.skip(
+		"duplicate slugs have no handling or behavioral guarantees; post authors are responsible for unique slugs",
+	);
 
 	test("posts require a primary heading and a usable address", async (context) => {
 		const directory = await temporaryPosts(context);

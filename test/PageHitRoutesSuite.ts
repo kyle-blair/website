@@ -2,10 +2,26 @@ import assert from "node:assert/strict";
 import { suite, test } from "node:test";
 import { PageHitsEndpoint } from "../src/app/api/page-hits/page-hits-endpoint.ts";
 import { GET as health } from "../src/app/api/health/route.ts";
-import { getPosts } from "../src/app/blog/posts.ts";
+import { staticPosts } from "../src/app/blog/posts.generated.ts";
 import { isPublishedPage } from "../src/app/published-pages.ts";
 
 suite("Website page-count routes", () => {
+	test("recognizes only exact published page paths", async () => {
+		for (const post of staticPosts) {
+			const path = `/blog/${post.getSlug()}`;
+			assert.equal(await isPublishedPage(path), true);
+			assert.equal(await isPublishedPage(`${path}/extra`), false);
+		}
+		for (const path of [
+			"/blog/no-such-post",
+			"/blog/",
+			"constructor",
+			"__proto__",
+		]) {
+			assert.equal(await isPublishedPage(path), false);
+		}
+	});
+
 	test("keeps health checks independent of counters and records only published pages", async () => {
 		const adjustments: unknown[] = [];
 		const endpoint = new PageHitsEndpoint(
@@ -33,7 +49,7 @@ suite("Website page-count routes", () => {
 			});
 
 		assert.equal(health().status, 200);
-		const [post] = await getPosts();
+		const [post] = staticPosts;
 		for (const path of [
 			"/",
 			"/blog",

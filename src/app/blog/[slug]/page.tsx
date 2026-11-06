@@ -2,21 +2,34 @@ import type { Metadata } from "next";
 import { ArrowLeft } from "lucide-react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { getPost, getPosts } from "../posts";
+import { PostNotFoundError } from "../PostNotFoundError.ts";
+import type { PostRepository } from "../PostRepository.ts";
+import { StaticPostRepository } from "../StaticPostRepository.ts";
+import { staticPosts } from "../posts.generated.ts";
 import { Feedback } from "@/feedback/feedback-controls";
+
+const postRepository: PostRepository = new StaticPostRepository(staticPosts);
 
 type Props = { params: Promise<{ slug: string }> };
 
 export const dynamicParams = false;
 
+function handlePostLookupError(error: unknown): never {
+	if (error instanceof PostNotFoundError) notFound();
+	throw error;
+}
+
 export async function generateStaticParams() {
-	return (await getPosts()).map((post) => ({ slug: post.getSlug() }));
+	return (await postRepository.getPosts()).map((post) => ({
+		slug: post.getSlug(),
+	}));
 }
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
 	const { slug } = await params;
-	const post = await getPost(slug);
-	if (!post) notFound();
+	const post = await postRepository
+		.getPost(slug)
+		.catch(handlePostLookupError);
 	return {
 		title: post.getTitle(),
 		alternates: {
@@ -32,8 +45,9 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
 export default async function BlogPostPage({ params }: Props) {
 	const { slug } = await params;
-	const post = await getPost(slug);
-	if (!post) notFound();
+	const post = await postRepository
+		.getPost(slug)
+		.catch(handlePostLookupError);
 	return (
 		<div className="blog-article-page container">
 			<div className="blog-article">

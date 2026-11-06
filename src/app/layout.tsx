@@ -4,8 +4,12 @@ import { SiteFooter } from "@/site-footer";
 import { SiteHeader } from "@/site-header";
 import { SiteVisitorDetails } from "@/site-visitor/site-visitor-details";
 import { PageNavigation } from "@/page-navigation";
-import { getPosts } from "./blog/posts";
+import type { PostRepository } from "./blog/PostRepository.ts";
+import { StaticPostRepository } from "./blog/StaticPostRepository.ts";
+import { staticPosts } from "./blog/posts.generated.ts";
 import "./globals.css";
+
+const postRepository: PostRepository = new StaticPostRepository(staticPosts);
 
 const brandFont = IBM_Plex_Mono({
 	subsets: ["latin"],
@@ -42,7 +46,7 @@ export default async function RootLayout({
 	const pages = [
 		{ path: "/", title: "home" },
 		{ path: "/blog", title: "blog" },
-		...(await getPosts()).map((post) => ({
+		...(await postRepository.getPosts()).map((post) => ({
 			path: `/blog/${post.getSlug()}`,
 			title: post.getTitle(),
 		})),

@@ -205,6 +205,36 @@ suite("Website and PostgreSQL containers", { timeout: 30000 }, () => {
 		}
 	});
 
+	test("links the blog index to a post with matching article metadata", async () => {
+		const path = "/blog/my-favorite-software-defect";
+		const index = await fetch(new URL("/blog", origin));
+		assert.equal(index.status, 200);
+		assert.ok((await index.text()).includes(`href="${path}"`));
+		const response = await fetch(new URL(path, origin));
+		assert.equal(response.status, 200);
+		const html = await response.text();
+		assert.match(html, /<h1>my favorite software defect<\/h1>/);
+		assert.match(html, /<title>my favorite software defect[^<]*<\/title>/);
+		assert.match(
+			html,
+			/<link rel="canonical" href="https:\/\/zerofourtwo\.com\/blog\/my-favorite-software-defect"/,
+		);
+		assert.match(html, /<meta property="og:type" content="article"/);
+		assert.match(
+			html,
+			/<meta property="og:title" content="my favorite software defect"/,
+		);
+		assert.match(
+			html,
+			/<meta property="og:url" content="https:\/\/zerofourtwo\.com\/blog\/my-favorite-software-defect"/,
+		);
+	});
+
+	test("returns not found for an unpublished blog slug", async () => {
+		const response = await fetch(new URL("/blog/no-such-post", origin));
+		assert.equal(response.status, 404);
+	});
+
 	test("renders reusable feedback controls above and below each blog post", async () => {
 		const response = await fetch(
 			new URL("/blog/my-favorite-software-defect", origin),

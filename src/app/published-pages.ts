@@ -1,8 +1,12 @@
-import { getPosts } from "./blog/posts.ts";
+import { staticPosts } from "./blog/posts.generated.ts";
+
+const publishedPages = new Set([
+	"/",
+	"/blog",
+	"/contact",
+	...staticPosts.map((post) => `/blog/${post.getSlug()}`),
+]);
 
 export async function isPublishedPage(path: string) {
-	return (
-		["/", "/blog", "/contact"].includes(path) ||
-		(await getPosts()).some((post) => path === `/blog/${post.getSlug()}`)
-	);
+	return publishedPages.has(path);
 }

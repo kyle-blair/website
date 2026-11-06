@@ -1,7 +1,11 @@
 import type { Metadata } from "next";
 import { ArrowUpRight } from "lucide-react";
 import Link from "next/link";
-import { getPosts } from "./posts";
+import type { PostRepository } from "./PostRepository.ts";
+import { StaticPostRepository } from "./StaticPostRepository.ts";
+import { staticPosts } from "./posts.generated.ts";
+
+const postRepository: PostRepository = new StaticPostRepository(staticPosts);
 
 export const metadata: Metadata = {
 	title: "blog",
@@ -9,7 +13,7 @@ export const metadata: Metadata = {
 };
 
 export default async function BlogPage() {
-	const posts = await getPosts();
+	const posts = await postRepository.getPosts();
 	return (
 		<section className="blog-cover">
 			<div className="blog-index container">
