@@ -43,8 +43,8 @@ export default async function RootLayout({
 		{ path: "/", title: "home" },
 		{ path: "/blog", title: "blog" },
 		...(await getPosts()).map((post) => ({
-			path: `/blog/${post.slug}`,
-			title: post.title,
+			path: `/blog/${post.getSlug()}`,
+			title: post.getTitle(),
 		})),
 		{ path: "/contact", title: "contact" },
 	];

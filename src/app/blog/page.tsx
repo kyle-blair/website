@@ -20,20 +20,23 @@ export default async function BlogPage() {
 				{posts.length ? (
 					<ul className="blog-posts">
 						{posts.map((post) => (
-							<li key={post.slug}>
+							<li key={post.getSlug()}>
 								<Link
 									className="blog-post-link"
-									href={`/blog/${encodeURIComponent(post.slug)}`}
+									href={`/blog/${encodeURIComponent(post.getSlug())}`}
 								>
-									<h2>{post.title}</h2>
-									{post.date && (
-										<time
-											className="blog-post-date"
-											dateTime={post.date}
-										>
-											{post.date}
-										</time>
-									)}
+									<h2>{post.getTitle()}</h2>
+									<time
+										className="blog-post-date"
+										dateTime={post
+											.getPublishedAt()
+											.toISOString()}
+									>
+										{post
+											.getPublishedAt()
+											.toISOString()
+											.slice(0, 10)}
+									</time>
 									<ArrowUpRight
 										size={24}
 										aria-hidden="true"

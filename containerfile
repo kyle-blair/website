@@ -10,6 +10,7 @@ RUN npm clean-install --include=dev
 
 COPY next.config.ts tsconfig.json ./
 COPY src ./src
+COPY scripts/generate-posts.ts ./scripts/generate-posts.ts
 RUN npm run build
 
 FROM node:24.22.1-bookworm-slim AS runner

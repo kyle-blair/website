@@ -21,6 +21,7 @@ COPY --chown=runner:runner database ./database
 COPY --chown=runner:runner test/integration ./test/integration
 COPY --chown=runner:runner containers/integration ./containers/integration
 COPY --chown=runner:runner scripts/integration-runner.sh ./scripts/integration-runner.sh
+COPY --chown=runner:runner scripts/generate-posts.ts ./scripts/generate-posts.ts
 COPY --chown=runner:runner scripts/health-check.mjs ./scripts/health-check.mjs
 COPY --chown=runner:runner scripts/migrate-database.mjs ./scripts/migrate-database.mjs
 ENV XDG_RUNTIME_DIR=/home/runner/.run \

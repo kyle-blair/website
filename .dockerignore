@@ -8,6 +8,7 @@
 **/*.pem
 **/*.key
 **/*.tsbuildinfo
+src/app/blog/posts.generated.ts
 **/*debug.log*
 **/.DS_Store
 .agents

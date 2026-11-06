@@ -213,7 +213,7 @@ suite("Website and PostgreSQL containers", { timeout: 30000 }, () => {
 		const html = await response.text();
 		assert.match(
 			html,
-			/<time\b[^>]*datetime="(\d{4}-\d{2}-\d{2})"[^>]*>\1<\/time>/i,
+			/<time\b[^>]*datetime="(\d{4}-\d{2}-\d{2})T\d{2}:\d{2}:\d{2}\.\d{3}Z"[^>]*>\1<\/time>/i,
 		);
 		assert.equal([...html.matchAll(/aria-label="Feedback"/g)].length, 2);
 		assert.equal([...html.matchAll(/aria-label="Like"/g)].length, 2);

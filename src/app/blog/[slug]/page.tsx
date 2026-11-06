@@ -10,7 +10,7 @@ type Props = { params: Promise<{ slug: string }> };
 export const dynamicParams = false;
 
 export async function generateStaticParams() {
-	return (await getPosts()).map((post) => ({ slug: post.slug }));
+	return (await getPosts()).map((post) => ({ slug: post.getSlug() }));
 }
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
@@ -18,11 +18,13 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 	const post = await getPost(slug);
 	if (!post) notFound();
 	return {
-		title: post.title,
-		alternates: { canonical: `/blog/${encodeURIComponent(post.slug)}` },
+		title: post.getTitle(),
+		alternates: {
+			canonical: `/blog/${encodeURIComponent(post.getSlug())}`,
+		},
 		openGraph: {
-			title: post.title,
-			url: `/blog/${encodeURIComponent(post.slug)}`,
+			title: post.getTitle(),
+			url: `/blog/${encodeURIComponent(post.getSlug())}`,
 			type: "article",
 		},
 	};
@@ -37,20 +39,20 @@ export default async function BlogPostPage({ params }: Props) {
 			<div className="blog-article">
 				<article>
 					<header className="blog-article__header">
-						<h1>{post.title}</h1>
-						{post.date && (
-							<time
-								className="blog-post-date"
-								dateTime={post.date}
-							>
-								{post.date}
-							</time>
-						)}
+						<h1>{post.getTitle()}</h1>
+						<time
+							className="blog-post-date"
+							dateTime={post.getPublishedAt().toISOString()}
+						>
+							{post.getPublishedAt().toISOString().slice(0, 10)}
+						</time>
 					</header>
-					<Feedback subject={`/blog/${post.slug}`}>
+					<Feedback subject={`/blog/${post.getSlug()}`}>
 						<div
 							className="blog-prose"
-							dangerouslySetInnerHTML={{ __html: post.body }}
+							dangerouslySetInnerHTML={{
+								__html: post.getContent(),
+							}}
 						/>
 					</Feedback>
 				</article>

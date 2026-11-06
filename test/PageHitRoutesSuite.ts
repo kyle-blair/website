@@ -34,7 +34,12 @@ suite("Website page-count routes", () => {
 
 		assert.equal(health().status, 200);
 		const [post] = await getPosts();
-		for (const path of ["/", "/blog", "/contact", `/blog/${post.slug}`]) {
+		for (const path of [
+			"/",
+			"/blog",
+			"/contact",
+			`/blog/${post.getSlug()}`,
+		]) {
 			const response = await endpoint.record(request(path));
 			assert.equal(response.status, 200);
 			assert.deepEqual(await response.json(), { count: 12 });

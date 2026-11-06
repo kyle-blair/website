@@ -22,6 +22,7 @@ pnpm-debug.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+/src/app/blog/posts.generated.ts
 
 # browser performance tests
 /performance-results/
