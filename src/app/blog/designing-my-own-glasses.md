@@ -4,8 +4,8 @@ Date: 2026-11-05
 
 ## the intro
 
-*Note that this is a work in progress. I will likely make edits here and/or create
-additional blog posts as time goes on.*
+_Note that this is a work in progress. I will likely make edits here and/or create
+additional blog posts as time goes on._
 
 A month or two ago, I fell asleep with my glasses on. While asleep, I rolled over and
 that was all it took; my glases are borked. Now, they still technically work, but one of
