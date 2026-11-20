@@ -38,6 +38,74 @@ function pageView(
 }
 
 suite("Website and PostgreSQL containers", { timeout: 30000 }, () => {
+	test("provides standard favicon and manifest links on published pages", async () => {
+		for (const path of [
+			"/",
+			"/blog",
+			"/contact",
+			"/blog/my-favorite-software-defect",
+		]) {
+			const response = await fetch(new URL(path, origin));
+			assert.equal(response.status, 200);
+			const head = (await response.text()).match(
+				/<head\b[^>]*>([\s\S]*?)<\/head>/,
+			)?.[1];
+			assert.ok(head);
+			assert.doesNotMatch(head, /apple-touch-icon/);
+			const links = head.match(/<link\b[^>]*>/g) ?? [];
+			const favicon = links.find(
+				(link) =>
+					link.includes('rel="icon"') &&
+					link.includes('type="image/png"'),
+			);
+			assert.ok(
+				favicon,
+				`${path} must advertise a standard PNG favicon.`,
+			);
+			const faviconHref = favicon.match(/href="([^"]+)"/)?.[1];
+			assert.ok(faviconHref);
+			const iconResponse = await fetch(new URL(faviconHref, origin));
+			assert.equal(iconResponse.status, 200);
+			assert.equal(iconResponse.headers.get("content-type"), "image/png");
+			const manifestLink = links.find((link) =>
+				link.includes('rel="manifest"'),
+			);
+			assert.ok(
+				manifestLink,
+				`${path} must advertise a Web App Manifest.`,
+			);
+			assert.match(manifestLink, /href="\/manifest\.webmanifest"/);
+		}
+
+		const manifestUrl = new URL("/manifest.webmanifest", origin);
+		const response = await fetch(manifestUrl);
+		assert.equal(response.status, 200);
+		assert.match(
+			response.headers.get("content-type") ?? "",
+			/application\/manifest\+json/,
+		);
+		const manifest = await response.json();
+		assert.equal(manifest.name, "zero four two");
+		assert.equal(new URL(manifest.start_url, manifestUrl).pathname, "/");
+		assert.ok(manifest.icons.length >= 2);
+		for (const icon of manifest.icons) {
+			assert.equal(icon.type, "image/png");
+			const response = await fetch(new URL(icon.src, manifestUrl));
+			assert.equal(response.status, 200);
+			assert.equal(response.headers.get("content-type"), "image/png");
+			const png = Buffer.from(await response.arrayBuffer());
+			assert.equal(
+				png.subarray(0, 8).toString("hex"),
+				"89504e470d0a1a0a",
+			);
+			const width = png.readUInt32BE(16);
+			const height = png.readUInt32BE(20);
+			assert.equal(width, height);
+			assert.ok(width >= 192);
+			assert.equal(icon.sizes, `${width}x${height}`);
+		}
+	});
+
 	test("renders matching header and footer navigation with the address stream outside both", async () => {
 		const response = await fetch(origin, {
 			signal: AbortSignal.timeout(5000),
