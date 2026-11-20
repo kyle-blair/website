@@ -11,7 +11,7 @@
 		"dev": "bash scripts/dev.sh",
 		"database:migrate": "node scripts/migrate-database.mjs",
 		"posts:generate": "node scripts/generate-posts.ts",
-		"build": "npm run posts:generate && next build && cp -R .next/static .next/standalone/.next/static",
+		"build": "npm run posts:generate && next build && cp -R .next/static .next/standalone/.next/static && cp -R public .next/standalone/public",
 		"start": "node .next/standalone/server.js",
 		"lint": "eslint .",
 		"pretypecheck": "npm run posts:generate",
