@@ -1,6 +1,6 @@
 # designing my own glasses
 
-Date: 2026-11-05
+Date: 2026-11-19
 
 ## the intro
 
