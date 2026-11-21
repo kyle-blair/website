@@ -1,4 +1,3 @@
-import { ArrowDown } from "lucide-react";
 import { ScrollReveal } from "@/scroll-reveal";
 import { SignalField } from "@/signal-field";
 
@@ -12,12 +11,20 @@ export default function Home() {
 				<div className="hero__content container">
 					<p className="eyebrow">home</p>
 					<h1 id="home-heading">kyle blair</h1>
-					<p className="hero__statement">
-						I like engineering cool stuff.
-					</p>
-					<a className="hero__scroll" href="#approach">
-						scroll to explore{" "}
-						<ArrowDown size={18} aria-hidden="true" />
+					<p className="hero__statement">I love engineering.</p>
+					<a
+						className="hero__scroll"
+						href="#approach"
+						aria-label="Scroll to read more"
+					>
+						<span
+							className="hero__scroll-track"
+							aria-hidden="true"
+						/>
+						<span
+							className="hero__scroll-chevrons"
+							aria-hidden="true"
+						/>
 					</a>
 				</div>
 			</section>
@@ -26,43 +33,26 @@ export default function Home() {
 				<section
 					className="home-chapter"
 					id="approach"
-					aria-labelledby="approach-heading"
+					aria-label="Engineering"
 				>
 					<div
 						className="home-chapter__content container"
 						data-reveal
 					>
-						<p className="eyebrow">approach</p>
 						<div className="home-chapter__copy">
-							<h2 id="approach-heading">Question assumptions.</h2>
-							<p>
-								Understand what actually drives the problem,
-								then apply thoughtful design where it matters
-								most.
+							<p className="home-chapter__lead">
+								The real world is complex and full of engineering
+								constraints.
 							</p>
-						</div>
-					</div>
-				</section>
-
-				<section
-					className="home-chapter"
-					aria-labelledby="background-heading"
-				>
-					<div
-						className="home-chapter__content container"
-						data-reveal
-					>
-						<p className="eyebrow">background</p>
-						<div className="home-chapter__copy">
-							<h2 id="background-heading">
-								Build on experience.
-							</h2>
 							<p>
-								I combine that approach with a computer
-								engineering degree and a decade of software
-								engineering experience, applying it all to
-								professional projects, everyday problems, and a
-								homelab that always needs a new feature.
+								Few materials last forever. Protocols and standards
+								constantly evolve. Foundational technologies are
+								supplanted.
+							</p>
+							<p>
+								The fun is in truly understanding a domain, then applying
+								modularity, abstractions, and creativity to maximize
+								design goals.
 							</p>
 						</div>
 					</div>
