@@ -40,19 +40,19 @@ export default function Home() {
 						data-reveal
 					>
 						<div className="home-chapter__copy">
-							<p className="home-chapter__lead">
-								The real world is complex and full of engineering
-								constraints.
+							<p>
+								The real world is complex and full of
+								engineering constraints.
 							</p>
 							<p>
-								Few materials last forever. Protocols and standards
-								constantly evolve. Foundational technologies are
-								supplanted.
+								Few materials last forever. Protocols and
+								standards constantly evolve. Foundational
+								technologies are supplanted.
 							</p>
 							<p>
-								The fun is in truly understanding a domain, then applying
-								modularity, abstractions, and creativity to maximize
-								design goals.
+								The fun is in truly understanding a domain, then
+								applying modularity, abstractions, and
+								creativity to maximize design goals.
 							</p>
 						</div>
 					</div>

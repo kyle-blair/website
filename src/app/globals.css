@@ -437,9 +437,9 @@ textarea {
 .home-chapter__copy {
 	position: relative;
 	display: grid;
-	grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr);
-	align-items: start;
-	gap: 1.5rem clamp(2rem, 6vw, 6rem);
+	gap: 1.5rem;
+	max-width: 52rem;
+	margin-inline: auto;
 	border-block: 1px solid rgba(157, 124, 255, 0.3);
 	padding: clamp(2rem, 5vw, 4rem) clamp(1.25rem, 3vw, 3rem);
 	background: linear-gradient(
@@ -471,28 +471,11 @@ textarea {
 }
 
 .home-chapter__copy p {
-	grid-column: 2;
-	max-width: 42ch;
 	margin: 0;
-	color: var(--muted);
-	font-size: 1.125rem;
+	color: #d0cfca;
+	font-size: clamp(1.125rem, 1rem + 0.5vw, 1.375rem);
 	line-height: 1.75;
 	text-wrap: pretty;
-}
-
-.home-chapter__copy .home-chapter__lead {
-	grid-column: 1;
-	grid-row: 1 / span 2;
-	max-width: 17ch;
-	color: var(--foreground);
-	font-size: clamp(2.25rem, 4.5vw, 3.75rem);
-	font-weight: 500;
-	line-height: 1.15;
-	text-wrap: balance;
-}
-
-.home-chapter__copy p:last-child {
-	color: #d0cfca;
 }
 
 @media (prefers-reduced-motion: no-preference) {
@@ -1016,24 +999,6 @@ main:has(> .blog-article-page)::before {
 }
 
 @media (max-width: 56.25em) {
-	.home-chapter__copy {
-		grid-template-columns: minmax(0, 1fr);
-	}
-
-	.home-chapter__copy p,
-	.home-chapter__copy .home-chapter__lead {
-		grid-column: auto;
-		grid-row: auto;
-	}
-
-	.home-chapter__copy p {
-		max-width: 54ch;
-	}
-
-	.home-chapter__copy .home-chapter__lead {
-		max-width: 24ch;
-	}
-
 	.section {
 		padding-block: 5.5rem;
 	}
