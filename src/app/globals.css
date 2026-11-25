@@ -1047,6 +1047,7 @@ main:has(> .blog-article-page)::before {
 		padding: 1rem 0;
 		border-bottom: 1px solid var(--line);
 		font-size: 1.125rem;
+		text-align: right;
 	}
 
 	.mobile-nav a:last-child {
